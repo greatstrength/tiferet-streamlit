@@ -1,0 +1,74 @@
+interfaces:
+  calc_app:
+    name: Calculator App
+    description: A Streamlit calculator powered by Tiferet
+
+services:
+  add_number_event:
+    module_path: app.events.calc
+    class_name: AddNumber
+  subtract_number_event:
+    module_path: app.events.calc
+    class_name: SubtractNumber
+  multiply_number_event:
+    module_path: app.events.calc
+    class_name: MultiplyNumber
+  divide_number_event:
+    module_path: app.events.calc
+    class_name: DivideNumber
+  exponentiate_number_event:
+    module_path: app.events.calc
+    class_name: ExponentiateNumber
+
+errors:
+  invalid_input:
+    name: Invalid Numeric Input
+    message:
+      - lang: en_US
+        text: 'Value {} must be a number'
+  division_by_zero:
+    name: Division By Zero
+    message:
+      - lang: en_US
+        text: 'Cannot divide by zero'
+
+features:
+  calc:
+    add:
+      name: Add Number
+      description: Adds one number to another
+      commands:
+        - attribute_id: add_number_event
+          name: Add a and b
+    subtract:
+      name: Subtract Number
+      description: Subtracts one number from another
+      commands:
+        - attribute_id: subtract_number_event
+          name: Subtract b from a
+    multiply:
+      name: Multiply Number
+      description: Multiplies one number by another
+      commands:
+        - attribute_id: multiply_number_event
+          name: Multiply a and b
+    divide:
+      name: Divide Number
+      description: Divides one number by another
+      commands:
+        - attribute_id: divide_number_event
+          name: Divide a by b
+    exp:
+      name: Exponentiate Number
+      description: Raises one number to the power of another
+      commands:
+        - attribute_id: exponentiate_number_event
+          name: Raise a to the power of b
+    sqrt:
+      name: Square Root
+      description: Calculates the square root of a number
+      commands:
+        - attribute_id: exponentiate_number_event
+          name: Calculate square root of a
+          params:
+            b: '0.5'
