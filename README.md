@@ -14,20 +14,18 @@ Requires Python 3.10+ and installs `tiferet>=2.0.0b1` and `streamlit>=1.30.0` au
 
 ### 1. Set Up Your Tiferet App
 
-Create a standard Tiferet project structure with your domain events and configuration:
+Create a standard Tiferet project structure with your domain events and a consolidated configuration file:
 
 ```
 project_root/
 ├── app.py
+├── config.yml
 └── app/
-    └── configs/
-        ├── app.yml
-        ├── container.yml
-        ├── error.yml
-        └── feature.yml
+    └── events/
+        └── ...
 ```
 
-Define a Streamlit interface in `app/configs/app.yml`:
+Define your interfaces, features, errors, and container in a single `config.yml` at the project root:
 
 ```yaml
 interfaces:
@@ -205,7 +203,7 @@ app.run('my_app', page_configs=page_configs)
 
 ### Dispatching Tiferet Features
 
-The `dispatch()` method on `ViewContext` executes Tiferet features defined in your `feature.yml` configuration:
+The `dispatch()` method on `ViewContext` executes Tiferet features defined in your `config.yml`:
 
 ```python
 # In your ViewContext subclass:
