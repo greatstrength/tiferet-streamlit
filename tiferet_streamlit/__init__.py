@@ -4,3 +4,6 @@
 
 # ** export: domain
 from .domain import Page
+
+# ** export: interfaces
+from .interfaces import ViewService
