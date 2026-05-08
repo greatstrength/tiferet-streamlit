@@ -7,3 +7,6 @@ from .session import SessionCacheContext
 
 # ** export: view
 from .view import ViewContext, ViewComponent
+
+# ** export: page
+from .page import PageContext
