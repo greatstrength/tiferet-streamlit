@@ -15,10 +15,12 @@ try:
     # ** export: builders
     from .builders import StreamlitBuilder, StreamlitApp
 
-except ImportError:  # pragma: no cover
-    import os as _os
-    if not _os.environ.get('TIFERET_SILENT_IMPORTS'):
-        raise
+except Exception as e:
+    import os, sys
+    # Only print warning if TIFERET_SILENT_IMPORTS is not set to a truthy value
+    if not os.getenv('TIFERET_SILENT_IMPORTS'):
+        print(f"Warning: Failed to import tiferet-streamlit core modules: {e}", file=sys.stderr)
+    pass
 
 # *** version
 
