@@ -9,4 +9,4 @@ from .domain import Page
 from .interfaces import ViewService
 
 # ** export: contexts
-from .contexts import SessionCacheContext, ViewContext, ViewComponent
+from .contexts import SessionCacheContext, ViewContext, ViewComponent, PageContext
