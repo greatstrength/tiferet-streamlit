@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tiferet-streamlit"
+dynamic = ["version"]
+description = "A Streamlit extension for the Tiferet Framework"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "tiferet>=2.0.0b1",
+    "streamlit>=1.30.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-cov",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "tiferet_streamlit.__version__"}
+
+[tool.setuptools.packages.find]
+include = ["tiferet_streamlit*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tiferet_streamlit"]
