@@ -12,8 +12,8 @@ try:
     # ** export: contexts
     from .contexts import SessionCacheContext, ViewContext, ViewComponent, PageContext
 
-    # ** export: builders
-    from .builders import StreamlitBuilder, StreamlitApp
+    # ** export: blueprints
+    from .blueprints import build_streamlit_app, build_streamlit_app as StreamlitApp
 
 except Exception as e:
     import os, sys
