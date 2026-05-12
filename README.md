@@ -8,6 +8,8 @@ A Streamlit extension for the [Tiferet Framework](https://github.com/greatstreng
 pip install tiferet-streamlit
 ```
 
+Requires `tiferet>=2.0.0b3` and `streamlit>=1.30.0`.
+
 ## Quick Start
 
 ```python
@@ -26,9 +28,7 @@ class HomeView(ViewContext):
             self.session.set('count', count + 1)
             st.rerun()
 
-app = StreamlitApp()
-app.load_app_service()
-app.run('my_interface', pages={'/': HomeView})
+StreamlitApp('my_interface', pages={'/': HomeView})
 ```
 
 ## Core Concepts
@@ -69,10 +69,10 @@ cache.get('key')  # 'value'
 
 ### Multi-Page Applications
 
-Use `PageContext` to register multiple views with routes:
+Use `StreamlitApp` (or `build_streamlit_app`) to register multiple views with routes:
 
 ```python
-app.run('my_interface', pages={
+StreamlitApp('my_interface', pages={
     '/': HomeView,
     '/about': AboutView,
     '/settings': SettingsView,
@@ -84,7 +84,7 @@ app.run('my_interface', pages={
 Define pages as `Page` domain objects for YAML-driven configuration:
 
 ```python
-from tiferet_streamlit import Page
+from tiferet_streamlit import Page, StreamlitApp
 
 pages = [
     Page(route='/', title='Home', icon='🏠',
@@ -93,7 +93,7 @@ pages = [
          view_module_path='app.views.about', view_class_name='AboutView'),
 ]
 
-app.run('my_interface', page_configs=pages)
+StreamlitApp('my_interface', page_configs=pages)
 ```
 
 ### Feature Dispatch
@@ -112,15 +112,16 @@ class CalcView(ViewContext):
 
 ## API Reference
 
-| Class | Module | Description |
-|-------|--------|-------------|
+| Export | Module | Description |
+|--------|--------|-------------|
+| `build_streamlit_app` | `blueprints.streamlit` | Primary entry point blueprint function |
+| `StreamlitApp` | `blueprints` | Alias for `build_streamlit_app` |
 | `Page` | `domain.view` | Page configuration domain object |
 | `ViewService` | `interfaces.view` | Abstract service for page management |
 | `SessionCacheContext` | `contexts.session` | Session-state-backed cache with namespacing |
 | `ViewContext` | `contexts.view` | Page code-behind with lifecycle management |
 | `ViewComponent` | `contexts.view` | Prop-driven sub-component |
 | `PageContext` | `contexts.page` | Multi-page navigation manager |
-| `StreamlitBuilder` | `builders.main` | Application entry point (also aliased as `StreamlitApp`) |
 
 ## Development
 
