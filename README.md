@@ -31,6 +31,8 @@ class HomeView(ViewContext):
 StreamlitApp('my_interface', pages={'/': HomeView})
 ```
 
+> The counter above wires its widget by hand. See [docs/guides/widgets.md](docs/guides/widgets.md) for `ViewContext` binding methods that sync a widget's value and dispatch for you.
+
 ## Core Concepts
 
 ### ViewContext
@@ -39,6 +41,7 @@ The code-behind for a Streamlit page. Manages state via `SessionCacheContext`, d
 
 - **`init_state()`** — Called once on first construction. Override to set initial state.
 - **`dispatch(feature_id, headers=None, **data)`** — Execute a Tiferet feature.
+- **`bind_widget`, `bind_widget_dispatch`, `bind_trigger`** — Bind a native Streamlit widget's value and dispatch on change; see [docs/guides/widgets.md](docs/guides/widgets.md).
 - **`render()`** — Override to define Streamlit widgets.
 - **`__call__()`** — Makes the view callable for `st.Page` composition.
 
@@ -110,6 +113,8 @@ class CalcView(ViewContext):
             st.write(f'Result: {result}')
 ```
 
+> This example dispatches on every rerun rather than only on a real change. See [docs/guides/widgets.md](docs/guides/widgets.md) for the `bind_widget_dispatch` and `bind_trigger` methods that fix both hand-wired patterns above.
+
 ## API Reference
 
 | Export | Module | Description |
@@ -119,8 +124,8 @@ class CalcView(ViewContext):
 | `Page` | `domain.view` | Page configuration domain object |
 | `ViewService` | `interfaces.view` | Abstract service for page management |
 | `SessionCacheContext` | `contexts.session` | Session-state-backed cache with namespacing |
-| `ViewContext` | `contexts.view` | Page code-behind with lifecycle management |
-| `ViewComponent` | `contexts.view` | Prop-driven sub-component |
+| `ViewContext` | `contexts.view` | Page code-behind with lifecycle management and widget binding ([guide](docs/guides/widgets.md)) |
+| `ViewComponent` | `contexts.view` | Prop-driven sub-component with delegated widget binding |
 | `PageContext` | `contexts.page` | Multi-page navigation manager |
 
 ## Development

@@ -290,6 +290,279 @@ def test_audit_log_is_namespaced_per_view(mock_app: MagicMock, mock_session_stat
     assert len(view_a.audit_log) == 1
     assert len(view_b.audit_log) == 0
 
+# *** tests: view_context bind_widget
+
+# ** test: bind_widget_seeds_default_on_first_render
+def test_bind_widget_seeds_default_on_first_render(sample_view: SampleView) -> None:
+    '''
+    Verify bind_widget seeds the widget with the default when unset.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Stand in for a native Streamlit widget.
+    widget = MagicMock(return_value='typed')
+
+    # Bind the widget with a default.
+    result = sample_view.bind_widget('name', widget, default='guest')
+
+    # Assert the widget was seeded with the default value.
+    widget.assert_called_once_with(value='guest')
+
+    # Assert the return value was written back and returned.
+    assert result == 'typed'
+    assert sample_view.session.get('name') == 'typed'
+
+# ** test: bind_widget_seeds_stored_value_on_rerun
+def test_bind_widget_seeds_stored_value_on_rerun(sample_view: SampleView) -> None:
+    '''
+    Verify bind_widget seeds the widget with the previously stored value.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Pre-seed the stored value from a prior rerun.
+    sample_view.session.set('name', 'stored')
+
+    # Stand in for a native Streamlit widget.
+    widget = MagicMock(return_value='stored')
+
+    # Bind the widget.
+    sample_view.bind_widget('name', widget, default='guest')
+
+    # Assert the widget was seeded with the stored value, not the default.
+    widget.assert_called_once_with(value='stored')
+
+# ** test: bind_widget_forwards_kwargs_untouched
+def test_bind_widget_forwards_kwargs_untouched(sample_view: SampleView) -> None:
+    '''
+    Verify widget-specific keyword arguments are forwarded untouched.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Stand in for a native Streamlit widget.
+    widget = MagicMock(return_value=5)
+
+    # Bind the widget with extra widget-specific kwargs.
+    sample_view.bind_widget('count', widget, default=0, min_value=0, max_value=10)
+
+    # Assert the extra kwargs were forwarded alongside the injected value.
+    widget.assert_called_once_with(value=0, min_value=0, max_value=10)
+
+# ** test: bind_widget_respects_custom_value_param
+def test_bind_widget_respects_custom_value_param(sample_view: SampleView) -> None:
+    '''
+    Verify a custom value_param name is used to seed the widget.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Stand in for a native Streamlit widget that uses 'index' instead of 'value'.
+    widget = MagicMock(return_value='b')
+
+    # Bind the widget with a custom value_param.
+    sample_view.bind_widget('choice', widget, value_param='index', default='a')
+
+    # Assert the widget was seeded via the custom kwarg name.
+    widget.assert_called_once_with(index='a')
+
+# *** tests: view_context bind_widget_dispatch
+
+# ** test: bind_widget_dispatch_dispatches_on_change
+def test_bind_widget_dispatch_dispatches_on_change(sample_view: SampleView, mock_app: MagicMock) -> None:
+    '''
+    Verify dispatch is called with the default {key: value} payload on change.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Simulate a user typing a new value.
+    widget = MagicMock(return_value='new value')
+
+    # Bind with dispatch.
+    result = sample_view.bind_widget_dispatch('name', widget, 'greet.user')
+
+    # Assert the feature was dispatched with the default payload shape.
+    mock_app.run.assert_called_once_with(
+        feature_id='greet.user',
+        headers={},
+        data={'name': 'new value'},
+    )
+    assert result == 'new value'
+
+# ** test: bind_widget_dispatch_skips_dispatch_when_unchanged
+def test_bind_widget_dispatch_skips_dispatch_when_unchanged(sample_view: SampleView, mock_app: MagicMock) -> None:
+    '''
+    Verify dispatch is not called when the value is unchanged across a rerun.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Pre-seed the stored value to simulate a prior rerun.
+    sample_view.session.set('name', 'same')
+
+    # Simulate the widget returning the same value on rerun.
+    widget = MagicMock(return_value='same')
+
+    # Bind with dispatch.
+    sample_view.bind_widget_dispatch('name', widget, 'greet.user')
+
+    # Assert no dispatch occurred.
+    mock_app.run.assert_not_called()
+
+# ** test: bind_widget_dispatch_uses_custom_dispatch_data
+def test_bind_widget_dispatch_uses_custom_dispatch_data(sample_view: SampleView, mock_app: MagicMock) -> None:
+    '''
+    Verify a custom dispatch_data callable overrides the default payload shape.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Simulate a user typing a new value.
+    widget = MagicMock(return_value='new value')
+
+    # Bind with a custom dispatch_data mapping.
+    sample_view.bind_widget_dispatch(
+        'name',
+        widget,
+        'greet.user',
+        dispatch_data=lambda value: {'entered_name': value, 'source': 'form'},
+    )
+
+    # Assert the custom payload shape was used.
+    mock_app.run.assert_called_once_with(
+        feature_id='greet.user',
+        headers={},
+        data={'entered_name': 'new value', 'source': 'form'},
+    )
+
+# ** test: bind_widget_dispatch_is_audited
+def test_bind_widget_dispatch_is_audited(sample_view: SampleView) -> None:
+    '''
+    Verify a dispatch triggered by bind_widget_dispatch is recorded in the audit log.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Simulate a user typing a new value.
+    widget = MagicMock(return_value='new value')
+    sample_view.bind_widget_dispatch('name', widget, 'greet.user')
+
+    # Assert the dispatch was recorded, since bind_widget_dispatch calls self.dispatch().
+    assert len(sample_view.audit_log) == 1
+    assert sample_view.audit_log[0].feature_id == 'greet.user'
+
+# *** tests: view_context bind_trigger
+
+# ** test: bind_trigger_dispatches_on_truthy_return
+def test_bind_trigger_dispatches_on_truthy_return(sample_view: SampleView, mock_app: MagicMock) -> None:
+    '''
+    Verify a trigger widget dispatches unconditionally on a truthy return.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Simulate a clicked button.
+    widget = MagicMock(return_value=True)
+
+    # Bind the trigger.
+    result = sample_view.bind_trigger(widget, 'calc.reset')
+
+    # Assert the feature was dispatched with an empty default payload.
+    mock_app.run.assert_called_once_with(
+        feature_id='calc.reset',
+        headers={},
+        data={},
+    )
+    assert result is True
+
+# ** test: bind_trigger_skips_dispatch_on_falsy_return
+def test_bind_trigger_skips_dispatch_on_falsy_return(sample_view: SampleView, mock_app: MagicMock) -> None:
+    '''
+    Verify a trigger widget does not dispatch when its return is falsy.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Simulate a button that was not clicked this rerun.
+    widget = MagicMock(return_value=False)
+
+    # Bind the trigger.
+    result = sample_view.bind_trigger(widget, 'calc.reset')
+
+    # Assert no dispatch occurred.
+    mock_app.run.assert_not_called()
+    assert result is False
+
+# ** test: bind_trigger_uses_custom_dispatch_data
+def test_bind_trigger_uses_custom_dispatch_data(sample_view: SampleView, mock_app: MagicMock) -> None:
+    '''
+    Verify a custom dispatch_data callable supplies the dispatch payload.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Simulate a clicked submit button.
+    widget = MagicMock(return_value=True)
+
+    # Bind the trigger with a custom payload.
+    sample_view.bind_trigger(widget, 'form.submit', dispatch_data=lambda: {'confirmed': True})
+
+    # Assert the custom payload was dispatched.
+    mock_app.run.assert_called_once_with(
+        feature_id='form.submit',
+        headers={},
+        data={'confirmed': True},
+    )
+
+# ** test: bind_trigger_has_no_stored_previous_value
+def test_bind_trigger_has_no_stored_previous_value(sample_view: SampleView, mock_session_state: dict) -> None:
+    '''
+    Verify bind_trigger writes nothing to the session cache.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Snapshot the namespace's keys before the trigger.
+    before_keys = {k for k in mock_session_state if k.startswith('test_view.')}
+
+    # Simulate a clicked button.
+    widget = MagicMock(return_value=True)
+    sample_view.bind_trigger(widget, 'calc.reset')
+
+    # Assert bind_trigger itself wrote no widget-value key; the only new key
+    # is the audit log entry, which is dispatch()'s own side effect (RFP-002),
+    # not something bind_trigger writes.
+    after_keys = {k for k in mock_session_state if k.startswith('test_view.')}
+    assert after_keys - before_keys <= {'test_view._audit_log'}
+
 # *** tests: view_context render
 
 # ** test: render_raises_not_implemented
@@ -533,3 +806,76 @@ def test_callable_does_not_wrap_default_not_implemented(mock_app: MagicMock, moc
     # wrapped TiferetError.
     with pytest.raises(NotImplementedError):
         view()
+
+# *** tests: view_component bind delegation
+
+# ** test: component_bind_widget_delegates_to_ctx
+def test_component_bind_widget_delegates_to_ctx(sample_view: SampleView) -> None:
+    '''
+    Verify ViewComponent.bind_widget delegates to the parent ctx and shares state.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Stand in for a native Streamlit widget.
+    widget = MagicMock(return_value='typed')
+
+    # Bind the widget through the component.
+    comp = ViewComponent(ctx=sample_view)
+    result = comp.bind_widget('name', widget, default='guest')
+
+    # Assert the result and stored value are visible through the parent view.
+    assert result == 'typed'
+    assert sample_view.session.get('name') == 'typed'
+
+# ** test: component_bind_widget_dispatch_delegates_to_ctx
+def test_component_bind_widget_dispatch_delegates_to_ctx(sample_view: SampleView, mock_app: MagicMock) -> None:
+    '''
+    Verify ViewComponent.bind_widget_dispatch delegates to the parent ctx.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Simulate a user typing a new value.
+    widget = MagicMock(return_value='new value')
+
+    # Bind with dispatch through the component.
+    comp = ViewComponent(ctx=sample_view)
+    comp.bind_widget_dispatch('name', widget, 'greet.user')
+
+    # Assert the feature was dispatched via the parent ctx.
+    mock_app.run.assert_called_once_with(
+        feature_id='greet.user',
+        headers={},
+        data={'name': 'new value'},
+    )
+
+# ** test: component_bind_trigger_delegates_to_ctx
+def test_component_bind_trigger_delegates_to_ctx(sample_view: SampleView, mock_app: MagicMock) -> None:
+    '''
+    Verify ViewComponent.bind_trigger delegates to the parent ctx.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Simulate a clicked button.
+    widget = MagicMock(return_value=True)
+
+    # Bind the trigger through the component.
+    comp = ViewComponent(ctx=sample_view)
+    result = comp.bind_trigger(widget, 'calc.reset')
+
+    # Assert the feature was dispatched and the result was returned.
+    mock_app.run.assert_called_once_with(
+        feature_id='calc.reset',
+        headers={},
+        data={},
+    )
+    assert result is True
