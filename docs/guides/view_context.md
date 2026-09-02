@@ -26,7 +26,14 @@ ViewContext(app, key, session=None)
 Called once on first construction. Override to set initial state values. No-op by default.
 
 ### `dispatch(feature_id, headers=None, **data)`
-Execute a Tiferet feature. Returns the feature result.
+Execute a Tiferet feature. Returns the feature result. Every call — success or
+failure — appends a `DispatchAuditRecord` to `audit_log`. On failure, the
+record is appended before the original exception re-raises unchanged.
+
+### `audit_log` (property)
+The view's dispatch history as a list of `DispatchAuditRecord` domain objects
+(`feature_id`, `arguments`, `outcome`, `result`), oldest first. Namespaced per
+view via `SessionCacheContext`, consistent with other session-backed state.
 
 ### `render()`
 Define the Streamlit UI. Subclasses must override. Raises `NotImplementedError` by default.

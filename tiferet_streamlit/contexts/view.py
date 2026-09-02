@@ -3,12 +3,13 @@
 # *** imports
 
 # ** core
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 # ** infra
 from tiferet.contexts.app import AppInterfaceContext
 
 # ** app
+from ..domain import DispatchAuditRecord
 from .session import SessionCacheContext
 
 # *** contexts
@@ -77,7 +78,8 @@ class ViewContext(object):
             **data,
         ) -> Any:
         '''
-        Dispatch a Tiferet feature via the app context.
+        Dispatch a Tiferet feature via the app context, recording every
+        attempt to the view's in-session audit log.
 
         :param feature_id: The feature identifier to execute.
         :type feature_id: str
@@ -89,12 +91,83 @@ class ViewContext(object):
         :rtype: Any
         '''
 
-        # Delegate to the app context run method.
-        return self.app.run(
+        # Delegate to the app context run method, capturing the outcome.
+        try:
+            result = self.app.run(
+                feature_id=feature_id,
+                headers=headers or {},
+                data=data,
+            )
+        except Exception as exception:
+
+            # Record the failed dispatch before re-raising unchanged.
+            self._log_dispatch(
+                feature_id=feature_id,
+                data=data,
+                outcome='error',
+                result=str(exception),
+            )
+            raise
+
+        # Record the successful dispatch.
+        self._log_dispatch(
             feature_id=feature_id,
-            headers=headers or {},
             data=data,
+            outcome='success',
+            result=result,
         )
+
+        # Return the feature result unchanged.
+        return result
+
+    # * method: _log_dispatch
+    def _log_dispatch(self,
+            feature_id: str,
+            data: Dict[str, Any],
+            outcome: str,
+            result: Any,
+        ):
+        '''
+        Append a dispatch outcome record to this view's audit log.
+
+        :param feature_id: The feature identifier that was dispatched.
+        :type feature_id: str
+        :param data: The arguments passed to the feature.
+        :type data: Dict[str, Any]
+        :param outcome: Either 'success' or 'error'.
+        :type outcome: str
+        :param result: The feature result, or an error summary.
+        :type result: Any
+        '''
+
+        # Build the audit record domain object.
+        record = DispatchAuditRecord(
+            feature_id=feature_id,
+            arguments=data,
+            outcome=outcome,
+            result=result,
+        )
+
+        # Append the record's primitive form to this view's namespaced audit log.
+        log = self.session.get('_audit_log') or []
+        log.append(record.model_dump())
+        self.session.set('_audit_log', log)
+
+    # * method: audit_log (property)
+    @property
+    def audit_log(self) -> List[DispatchAuditRecord]:
+        '''
+        This view's dispatch audit log, oldest first.
+
+        :return: The recorded dispatch outcomes as domain objects.
+        :rtype: List[DispatchAuditRecord]
+        '''
+
+        # Reconstruct domain objects from the namespaced primitive log.
+        return [
+            DispatchAuditRecord(**record)
+            for record in (self.session.get('_audit_log') or [])
+        ]
 
     # * method: render
     def render(self):
@@ -115,7 +188,6 @@ class ViewContext(object):
 
         # Delegate to render.
         return self.render()
-
 
 # ** context: view_component
 class ViewComponent(object):
