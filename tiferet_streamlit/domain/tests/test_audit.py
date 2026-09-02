@@ -28,7 +28,6 @@ def sample_record_data() -> dict:
         result=3,
     )
 
-
 # ** fixture: sample_record
 @pytest.fixture
 def sample_record(sample_record_data: dict) -> DispatchAuditRecord:
@@ -42,7 +41,6 @@ def sample_record(sample_record_data: dict) -> DispatchAuditRecord:
     '''
 
     return DispatchAuditRecord(**sample_record_data)
-
 
 # *** tests
 
@@ -63,7 +61,6 @@ def test_record_required_fields(sample_record: DispatchAuditRecord, sample_recor
     assert sample_record.outcome == sample_record_data['outcome']
     assert sample_record.result == sample_record_data['result']
 
-
 # ** test: record_default_arguments_empty
 def test_record_default_arguments_empty() -> None:
     '''
@@ -76,7 +73,6 @@ def test_record_default_arguments_empty() -> None:
     # Assert the default arguments value.
     assert record.arguments == {}
 
-
 # ** test: record_default_result_none
 def test_record_default_result_none() -> None:
     '''
@@ -88,7 +84,6 @@ def test_record_default_result_none() -> None:
 
     # Assert the default result value.
     assert record.result is None
-
 
 # ** test: record_rejects_invalid_outcome
 def test_record_rejects_invalid_outcome(sample_record_data: dict) -> None:
@@ -103,7 +98,6 @@ def test_record_rejects_invalid_outcome(sample_record_data: dict) -> None:
     with pytest.raises(ValidationError):
         DispatchAuditRecord(**{**sample_record_data, 'outcome': 'pending'})
 
-
 # ** test: record_rejects_extra_fields
 def test_record_rejects_extra_fields(sample_record_data: dict) -> None:
     '''
@@ -116,7 +110,6 @@ def test_record_rejects_extra_fields(sample_record_data: dict) -> None:
     # Attempt to create a record with an extra field.
     with pytest.raises(ValidationError):
         DispatchAuditRecord(**{**sample_record_data, 'unknown_field': 'value'})
-
 
 # ** test: record_round_trips_through_model_dump
 def test_record_round_trips_through_model_dump(sample_record: DispatchAuditRecord) -> None:
