@@ -18,6 +18,7 @@ from ..contexts.session import SessionCacheContext
 from ..contexts.view import ViewContext
 from ..contexts.page import PageContext
 from ..domain.view import Page
+from ..interfaces.view import ViewService
 
 # *** blueprints
 
@@ -127,6 +128,7 @@ def build_streamlit_app(
         interface_id: str,
         pages: Dict[str, Type[ViewContext]] = None,
         page_configs: List[Page] = None,
+        view_service: ViewService = None,
         **parameters,
     ):
     '''
@@ -139,6 +141,10 @@ def build_streamlit_app(
     :type pages: Dict[str, Type[ViewContext]]
     :param page_configs: Optional list of Page domain objects. Takes precedence over pages.
     :type page_configs: List[Page]
+    :param view_service: Optional ViewService instance whose list_pages() result is
+        used to assemble pages. Only consulted when neither page_configs nor pages
+        is provided, so their existing precedence is unchanged.
+    :type view_service: ViewService
     :param parameters: Additional keyword arguments passed to resolve_interface.
     :type parameters: dict
     '''
@@ -157,6 +163,10 @@ def build_streamlit_app(
     elif pages is not None:
         page_ctx = build_pages(app, pages)
 
+    # Otherwise assemble pages from a ViewService-backed configuration store.
+    elif view_service is not None:
+        page_ctx = build_pages_from_config(app, view_service.list_pages())
+
     # Raise error if no pages provided.
     else:
         RaiseError.execute(
@@ -172,6 +182,7 @@ def run(
         interface_id: str,
         pages: Dict[str, Type[ViewContext]] = None,
         page_configs: List[Page] = None,
+        view_service: ViewService = None,
         **parameters,
     ):
     '''
@@ -183,6 +194,9 @@ def run(
     :type pages: Dict[str, Type[ViewContext]]
     :param page_configs: Optional list of Page domain objects.
     :type page_configs: List[Page]
+    :param view_service: Optional ViewService instance whose list_pages() result is
+        used to assemble pages.
+    :type view_service: ViewService
     :param parameters: Additional keyword arguments.
     :type parameters: dict
     '''
@@ -192,5 +206,6 @@ def run(
         interface_id,
         pages=pages,
         page_configs=page_configs,
+        view_service=view_service,
         **parameters,
     )

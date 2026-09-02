@@ -357,3 +357,105 @@ def test_build_streamlit_app_page_configs_take_precedence(
     call_kwargs = mock_st.Page.call_args[1]
     assert call_kwargs['url_path'] == '/config'
     assert call_kwargs['title'] == 'Config Page'
+
+
+# ** test: build_streamlit_app_with_view_service
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+def test_build_streamlit_app_with_view_service(
+        mock_resolve: MagicMock,
+        mock_realize: MagicMock,
+        mock_st: MagicMock,
+    ) -> None:
+    '''
+    Verify build_streamlit_app assembles pages from a ViewService's list_pages().
+
+    :param mock_resolve: The mocked resolve_interface function.
+    :type mock_resolve: MagicMock
+    :param mock_realize: The mocked realize_interface function.
+    :type mock_realize: MagicMock
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    '''
+
+    # Configure mocks.
+    mock_app_interface = MagicMock()
+    mock_app = MagicMock()
+    mock_resolve.return_value = (mock_app_interface, [])
+    mock_realize.return_value = mock_app
+
+    # Set up st mocks.
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+
+    # Configure a ViewService stand-in whose list_pages() feeds page assembly.
+    page_config = Page(
+        route='/service',
+        title='Service Page',
+        view_module_path='tiferet_streamlit.blueprints.tests.test_streamlit',
+        view_class_name='StubView',
+    )
+    mock_view_service = MagicMock()
+    mock_view_service.list_pages.return_value = [page_config]
+
+    # Run with only a view_service.
+    build_streamlit_app('test_interface', view_service=mock_view_service)
+
+    # Assert list_pages was consulted and navigation ran.
+    mock_view_service.list_pages.assert_called_once()
+    mock_nav.run.assert_called_once()
+
+
+# ** test: build_streamlit_app_page_configs_take_precedence_over_view_service
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+def test_build_streamlit_app_page_configs_take_precedence_over_view_service(
+        mock_resolve: MagicMock,
+        mock_realize: MagicMock,
+        mock_st: MagicMock,
+    ) -> None:
+    '''
+    Verify page_configs/pages precedence is unchanged when view_service is also given.
+
+    :param mock_resolve: The mocked resolve_interface function.
+    :type mock_resolve: MagicMock
+    :param mock_realize: The mocked realize_interface function.
+    :type mock_realize: MagicMock
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    '''
+
+    # Configure mocks.
+    mock_app_interface = MagicMock()
+    mock_app = MagicMock()
+    mock_resolve.return_value = (mock_app_interface, [])
+    mock_realize.return_value = mock_app
+
+    # Set up st mocks.
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+    mock_st.Page.return_value = 'page_obj'
+
+    # Create a page config and an unused ViewService stand-in.
+    page_config = Page(
+        route='/config',
+        title='Config Page',
+        view_module_path='tiferet_streamlit.blueprints.tests.test_streamlit',
+        view_class_name='StubView',
+    )
+    mock_view_service = MagicMock()
+
+    # Run with both page_configs and view_service.
+    build_streamlit_app(
+        'test_interface',
+        page_configs=[page_config],
+        view_service=mock_view_service,
+    )
+
+    # Assert the ViewService was never consulted since page_configs took precedence.
+    mock_view_service.list_pages.assert_not_called()
+    mock_st.Page.assert_called_once()
+    call_kwargs = mock_st.Page.call_args[1]
+    assert call_kwargs['url_path'] == '/config'

@@ -7,6 +7,8 @@ import pytest
 from pydantic import ValidationError
 
 # ** app
+from tiferet import TiferetError
+from tiferet_streamlit.assets.constants import INVALID_VIEW_TYPE_ID
 from tiferet_streamlit.domain.view import Page
 
 # *** fixtures
@@ -141,7 +143,7 @@ def test_page_get_view_type(sample_page: Page) -> None:
 # ** test: page_get_view_type_invalid_module
 def test_page_get_view_type_invalid_module(sample_page_data: dict) -> None:
     '''
-    Verify ModuleNotFoundError for a bad module path.
+    Verify a structured INVALID_VIEW_TYPE_ID error is raised for a bad module path.
 
     :param sample_page_data: The sample page data dictionary.
     :type sample_page_data: dict
@@ -150,15 +152,17 @@ def test_page_get_view_type_invalid_module(sample_page_data: dict) -> None:
     # Create a page with an invalid module path.
     page = Page(**{**sample_page_data, 'view_module_path': 'nonexistent.module'})
 
-    # Assert ModuleNotFoundError is raised.
-    with pytest.raises(ModuleNotFoundError):
+    # Assert a structured TiferetError with INVALID_VIEW_TYPE_ID is raised.
+    with pytest.raises(TiferetError) as exc_info:
         page.get_view_type()
+
+    assert exc_info.value.error_code == INVALID_VIEW_TYPE_ID
 
 
 # ** test: page_get_view_type_invalid_class
 def test_page_get_view_type_invalid_class(sample_page_data: dict) -> None:
     '''
-    Verify AttributeError for a bad class name.
+    Verify a structured INVALID_VIEW_TYPE_ID error is raised for a bad class name.
 
     :param sample_page_data: The sample page data dictionary.
     :type sample_page_data: dict
@@ -167,9 +171,11 @@ def test_page_get_view_type_invalid_class(sample_page_data: dict) -> None:
     # Create a page with an invalid class name.
     page = Page(**{**sample_page_data, 'view_class_name': 'NonexistentClass'})
 
-    # Assert AttributeError is raised.
-    with pytest.raises(AttributeError):
+    # Assert a structured TiferetError with INVALID_VIEW_TYPE_ID is raised.
+    with pytest.raises(TiferetError) as exc_info:
         page.get_view_type()
+
+    assert exc_info.value.error_code == INVALID_VIEW_TYPE_ID
 
 
 # ** test: page_rejects_extra_fields
