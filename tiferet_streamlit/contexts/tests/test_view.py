@@ -218,6 +218,76 @@ def test_dispatch_with_headers(sample_view: SampleView, mock_app: MagicMock) -> 
     )
 
 
+# *** tests: view_context dispatch audit log
+
+# ** test: dispatch_success_is_logged
+def test_dispatch_success_is_logged(sample_view: SampleView) -> None:
+    '''
+    Verify a successful dispatch appends a success record to the audit log.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Dispatch a feature.
+    result = sample_view.dispatch('calc.add', a=1, b=2)
+
+    # Assert the audit log contains the success record.
+    log = sample_view.audit_log()
+    assert len(log) == 1
+    assert log[0]['feature_id'] == 'calc.add'
+    assert log[0]['arguments'] == {'a': 1, 'b': 2}
+    assert log[0]['outcome'] == 'success'
+    assert log[0]['result'] == result
+
+
+# ** test: dispatch_failure_is_logged_and_raised
+def test_dispatch_failure_is_logged_and_raised(sample_view: SampleView, mock_app: MagicMock) -> None:
+    '''
+    Verify a failed dispatch appends an error record and re-raises unchanged.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Configure the app to raise on run.
+    mock_app.run.side_effect = ValueError('boom')
+
+    # Assert the original exception propagates unchanged.
+    with pytest.raises(ValueError, match='boom'):
+        sample_view.dispatch('calc.add', a=1, b=2)
+
+    # Assert the audit log contains the error record.
+    log = sample_view.audit_log()
+    assert len(log) == 1
+    assert log[0]['feature_id'] == 'calc.add'
+    assert log[0]['arguments'] == {'a': 1, 'b': 2}
+    assert log[0]['outcome'] == 'error'
+
+
+# ** test: audit_log_is_namespaced_per_view
+def test_audit_log_is_namespaced_per_view(mock_app: MagicMock, mock_session_state: dict) -> None:
+    '''
+    Verify the audit log is isolated per view namespace.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Create two distinct views and dispatch on one of them.
+    view_a = SampleView(app=mock_app, key='view_a')
+    view_b = SampleView(app=mock_app, key='view_b')
+    view_a.dispatch('calc.add', a=1, b=2)
+
+    # Assert only the dispatching view's log is populated.
+    assert len(view_a.audit_log()) == 1
+    assert len(view_b.audit_log()) == 0
+
+
 # *** tests: view_context render
 
 # ** test: render_raises_not_implemented
