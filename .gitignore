@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Tiferet collaboration working folders (local drafts, not committed artifacts)
+.trd/
+.rfp/
+.handoff/
+.milestones/
