@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 # ** app
 from tiferet_streamlit.contexts.session import SessionCacheContext
 from tiferet_streamlit.contexts.view import ViewContext, ViewComponent
+from tiferet_streamlit.domain.audit import DispatchAuditRecord
 
 # *** helpers
 
@@ -233,12 +234,13 @@ def test_dispatch_success_is_logged(sample_view: SampleView) -> None:
     result = sample_view.dispatch('calc.add', a=1, b=2)
 
     # Assert the audit log contains the success record.
-    log = sample_view.audit_log()
+    log = sample_view.audit_log
     assert len(log) == 1
-    assert log[0]['feature_id'] == 'calc.add'
-    assert log[0]['arguments'] == {'a': 1, 'b': 2}
-    assert log[0]['outcome'] == 'success'
-    assert log[0]['result'] == result
+    assert isinstance(log[0], DispatchAuditRecord)
+    assert log[0].feature_id == 'calc.add'
+    assert log[0].arguments == {'a': 1, 'b': 2}
+    assert log[0].outcome == 'success'
+    assert log[0].result == result
 
 
 # ** test: dispatch_failure_is_logged_and_raised
@@ -260,11 +262,11 @@ def test_dispatch_failure_is_logged_and_raised(sample_view: SampleView, mock_app
         sample_view.dispatch('calc.add', a=1, b=2)
 
     # Assert the audit log contains the error record.
-    log = sample_view.audit_log()
+    log = sample_view.audit_log
     assert len(log) == 1
-    assert log[0]['feature_id'] == 'calc.add'
-    assert log[0]['arguments'] == {'a': 1, 'b': 2}
-    assert log[0]['outcome'] == 'error'
+    assert log[0].feature_id == 'calc.add'
+    assert log[0].arguments == {'a': 1, 'b': 2}
+    assert log[0].outcome == 'error'
 
 
 # ** test: audit_log_is_namespaced_per_view
@@ -284,8 +286,8 @@ def test_audit_log_is_namespaced_per_view(mock_app: MagicMock, mock_session_stat
     view_a.dispatch('calc.add', a=1, b=2)
 
     # Assert only the dispatching view's log is populated.
-    assert len(view_a.audit_log()) == 1
-    assert len(view_b.audit_log()) == 0
+    assert len(view_a.audit_log) == 1
+    assert len(view_b.audit_log) == 0
 
 
 # *** tests: view_context render

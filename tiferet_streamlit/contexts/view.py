@@ -3,12 +3,13 @@
 # *** imports
 
 # ** core
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 # ** infra
 from tiferet.contexts.app import AppInterfaceContext
 
 # ** app
+from ..domain import DispatchAuditRecord
 from .session import SessionCacheContext
 
 # *** contexts
@@ -139,27 +140,34 @@ class ViewContext(object):
         :type result: Any
         '''
 
-        # Append the record to this view's namespaced audit log.
+        # Build the audit record domain object.
+        record = DispatchAuditRecord(
+            feature_id=feature_id,
+            arguments=data,
+            outcome=outcome,
+            result=result,
+        )
+
+        # Append the record's primitive form to this view's namespaced audit log.
         log = self.session.get('_audit_log') or []
-        log.append({
-            'feature_id': feature_id,
-            'arguments': data,
-            'outcome': outcome,
-            'result': result,
-        })
+        log.append(record.model_dump())
         self.session.set('_audit_log', log)
 
-    # * method: audit_log
-    def audit_log(self) -> list:
+    # * method: audit_log (property)
+    @property
+    def audit_log(self) -> List[DispatchAuditRecord]:
         '''
-        Return this view's dispatch audit log.
+        This view's dispatch audit log, oldest first.
 
-        :return: The list of recorded dispatch outcomes, oldest first.
-        :rtype: list
+        :return: The recorded dispatch outcomes as domain objects.
+        :rtype: List[DispatchAuditRecord]
         '''
 
-        # Return the namespaced audit log, defaulting to an empty list.
-        return self.session.get('_audit_log') or []
+        # Reconstruct domain objects from the namespaced primitive log.
+        return [
+            DispatchAuditRecord(**record)
+            for record in (self.session.get('_audit_log') or [])
+        ]
 
     # * method: render
     def render(self):
