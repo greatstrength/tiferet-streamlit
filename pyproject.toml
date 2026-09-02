@@ -12,6 +12,7 @@ requires-python = ">=3.10"
 dependencies = [
     "tiferet>=2.0.0b3",
     "streamlit>=1.30.0",
+    "toml>=0.10",
 ]
 
 [project.optional-dependencies]

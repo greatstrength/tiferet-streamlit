@@ -114,6 +114,30 @@ StreamlitApp(
 
 `get_view_service(app, service_id='view_service', flags=None)` resolves the dependency through the app's DI context and verifies it implements `ViewService`, raising a structured `INVALID_VIEW_SERVICE_ID` error otherwise.
 
+### Config-Driven Theming
+
+Declare a `Theme` as data and pass it to `StreamlitApp` to reach Streamlit's own native appearance controls, instead of hand-patching individual pages with one-off style tweaks:
+
+```python
+from tiferet_streamlit import Theme, StreamlitApp
+
+theme = Theme(
+    primary_color='#FF4B4B',
+    background_color='#FFFFFF',
+    text_color='#262730',
+    custom_css='.stButton button { border-radius: 8px; }',
+)
+
+StreamlitApp('my_interface', pages={'/': HomeView}, theme=theme)
+```
+
+A declared `Theme` reaches two separate, independent paths:
+
+- **Native `[theme]` fields** (`base`, `primary_color`, `background_color`, `secondary_background_color`, `text_color`, `font`) are merged into `.streamlit/config.toml`'s `[theme]` section on disk, preserving any unrelated settings already in that file. **Streamlit reads `config.toml` once at server startup, so this write takes effect on the *next* Streamlit process start — it does not re-theme the app that is currently running.**
+- **`custom_css`** is injected via `st.markdown(..., unsafe_allow_html=True)` on every app run, so it takes effect immediately, including on the current rerun.
+
+Omitting `theme` entirely leaves existing behavior unchanged: no `config.toml` write and no CSS injection.
+
 ### Feature Dispatch
 
 Views dispatch Tiferet features for backend logic:
@@ -137,6 +161,7 @@ class CalcView(ViewContext):
 | `build_streamlit_app` | `blueprints.streamlit` | Primary entry point blueprint function |
 | `StreamlitApp` | `blueprints` | Alias for `build_streamlit_app` |
 | `Page` | `domain.view` | Page configuration domain object |
+| `Theme` | `domain.theme` | App appearance declared as data |
 | `ViewService` | `interfaces.view` | Abstract service for page management |
 | `get_view_service` | `contexts.di` | DI-mediated, verified accessor for a `ViewService` dependency |
 | `SessionCacheContext` | `contexts.session` | Session-state-backed cache with namespacing |

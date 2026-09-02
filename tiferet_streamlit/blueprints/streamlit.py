@@ -3,9 +3,12 @@
 # *** imports
 
 # ** core
+from pathlib import Path
 from typing import Callable, Dict, List, Type
 
 # ** infra
+import streamlit as st
+import toml
 from tiferet.blueprints.main import (
     resolve_interface,
     realize_interface,
@@ -18,6 +21,7 @@ from ..contexts.session import SessionCacheContext
 from ..contexts.view import ViewContext
 from ..contexts.page import PageContext
 from ..domain.view import Page
+from ..domain.theme import Theme
 
 # *** blueprints
 
@@ -119,12 +123,70 @@ def build_pages_from_config(
     # Return the page context.
     return page_ctx
 
+# ** blueprint: apply_theme_config
+def apply_theme_config(
+        theme: Theme,
+        config_path: str = '.streamlit/config.toml',
+    ) -> None:
+    '''
+    Write a declared theme's native [theme] fields into config.toml,
+    merging into any existing file's [theme] section rather than
+    overwriting unrelated settings (e.g. [server]).
+
+    Streamlit reads config.toml once at process startup, so this write
+    takes effect on the *next* Streamlit process start — it does not
+    re-theme the currently running app.
+
+    :param theme: The declared theme to apply.
+    :type theme: Theme
+    :param config_path: Path to Streamlit's config.toml file.
+    :type config_path: str
+    '''
+
+    # Skip entirely if the theme declares no native fields.
+    native_fields = theme.native_fields
+    if not native_fields:
+        return
+
+    # Load any existing config so unrelated sections are preserved.
+    config_file = Path(config_path)
+    existing_config = toml.load(config_file) if config_file.exists() else {}
+
+    # Merge the declared fields into the [theme] section only.
+    existing_config.setdefault('theme', {}).update(native_fields)
+
+    # Ensure the parent directory exists before writing.
+    config_file.parent.mkdir(parents=True, exist_ok=True)
+
+    # Write the merged config back to disk.
+    with config_file.open('w', encoding='utf-8') as file:
+        toml.dump(existing_config, file)
+
+# ** blueprint: inject_theme_css
+def inject_theme_css(theme: Theme) -> None:
+    '''
+    Inject a declared theme's raw CSS via Streamlit's own markdown/HTML
+    mechanism. Unlike the native [theme] file, this applies immediately
+    on every app run.
+
+    :param theme: The declared theme to apply.
+    :type theme: Theme
+    '''
+
+    # Skip entirely if no custom CSS was declared.
+    if not theme.custom_css:
+        return
+
+    # Inject the CSS via Streamlit's markdown mechanism.
+    st.markdown(f'<style>{theme.custom_css}</style>', unsafe_allow_html=True)
+
 # ** blueprint: build_streamlit_app
 def build_streamlit_app(
         interface_id: str,
         pages: Dict[str, Type[ViewContext]] = None,
         page_configs: List[Page] = None,
         get_page_configs: Callable[..., List[Page]] = None,
+        theme: Theme = None,
         **parameters,
     ):
     '''
@@ -143,9 +205,16 @@ def build_streamlit_app(
         This is how a DI-resolved source (e.g. contexts.di.get_view_service(app).list_pages())
         plugs in without this blueprint importing any service interface directly.
     :type get_page_configs: Callable[..., List[Page]]
+    :param theme: Optional declared theme. Omitting it leaves existing behavior unchanged.
+    :type theme: Theme
     :param parameters: Additional keyword arguments passed to resolve_interface.
     :type parameters: dict
     '''
+
+    # Apply the declared theme's native config and CSS, if provided.
+    if theme is not None:
+        apply_theme_config(theme)
+        inject_theme_css(theme)
 
     # Resolve the interface definition.
     app_interface, _ = resolve_interface(interface_id, **parameters)
@@ -180,6 +249,7 @@ def run(
         pages: Dict[str, Type[ViewContext]] = None,
         page_configs: List[Page] = None,
         get_page_configs: Callable[..., List[Page]] = None,
+        theme: Theme = None,
         **parameters,
     ):
     '''
@@ -194,6 +264,8 @@ def run(
     :param get_page_configs: Optional callable invoked with the realized app interface
         context, returning a list of Page domain objects.
     :type get_page_configs: Callable[..., List[Page]]
+    :param theme: Optional declared theme. Omitting it leaves existing behavior unchanged.
+    :type theme: Theme
     :param parameters: Additional keyword arguments.
     :type parameters: dict
     '''
@@ -204,5 +276,6 @@ def run(
         pages=pages,
         page_configs=page_configs,
         get_page_configs=get_page_configs,
+        theme=theme,
         **parameters,
     )
