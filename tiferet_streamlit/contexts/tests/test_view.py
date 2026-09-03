@@ -57,7 +57,6 @@ class RenderingView(ViewContext):
         # Return the current count.
         return count
 
-
 # ** helper: failing_view
 class FailingView(ViewContext):
     '''
@@ -467,7 +466,6 @@ def test_component_raises_not_implemented(sample_view: SampleView) -> None:
     with pytest.raises(NotImplementedError):
         comp.render()
 
-
 # *** tests: view_context render failure hardening
 
 # ** test: callable_wraps_render_failure
@@ -492,7 +490,6 @@ def test_callable_wraps_render_failure(mock_app: MagicMock, mock_session_state: 
     # Assert the structured error carries VIEW_RENDER_FAILED_ID.
     assert exc_info.value.error_code == VIEW_RENDER_FAILED_ID
 
-
 # ** test: callable_wraps_render_failure_preserves_chain
 def test_callable_wraps_render_failure_preserves_chain(mock_app: MagicMock, mock_session_state: dict) -> None:
     '''
@@ -513,7 +510,6 @@ def test_callable_wraps_render_failure_preserves_chain(mock_app: MagicMock, mock
 
     assert isinstance(exc_info.value.__cause__, ValueError)
     assert str(exc_info.value.__cause__) == 'boom'
-
 
 # ** test: callable_does_not_wrap_default_not_implemented
 def test_callable_does_not_wrap_default_not_implemented(mock_app: MagicMock, mock_session_state: dict) -> None:

@@ -36,7 +36,6 @@ def test_all_constants_are_non_empty_strings(constant: str) -> None:
     # Assert the constant is non-empty.
     assert len(constant) > 0
 
-
 # ** test: constants_are_uppercase
 @pytest.mark.parametrize('constant', [
     PAGE_NOT_FOUND_ID,
@@ -53,7 +52,6 @@ def test_constants_are_uppercase(constant: str) -> None:
 
     # Assert the constant value is uppercase.
     assert constant == constant.upper()
-
 
 # ** test: constants_are_distinct
 def test_constants_are_distinct() -> None:

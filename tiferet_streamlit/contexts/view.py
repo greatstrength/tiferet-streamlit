@@ -214,7 +214,6 @@ class ViewContext(object):
             except TiferetError as failure:
                 raise failure from err
 
-
 # ** context: view_component
 class ViewComponent(object):
     '''
