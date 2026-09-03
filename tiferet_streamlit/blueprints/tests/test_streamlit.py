@@ -346,17 +346,17 @@ def test_build_streamlit_app_page_configs_take_precedence(
     assert call_kwargs['url_path'] == '/config'
     assert call_kwargs['title'] == 'Config Page'
 
-# ** test: build_streamlit_app_with_view_service
+# ** test: build_streamlit_app_with_get_page_configs
 @patch('tiferet_streamlit.contexts.page.st')
 @patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
 @patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
-def test_build_streamlit_app_with_view_service(
+def test_build_streamlit_app_with_get_page_configs(
         mock_resolve: MagicMock,
         mock_realize: MagicMock,
         mock_st: MagicMock,
     ) -> None:
     '''
-    Verify build_streamlit_app assembles pages from a ViewService's list_pages().
+    Verify build_streamlit_app assembles pages via a get_page_configs handler.
 
     :param mock_resolve: The mocked resolve_interface function.
     :type mock_resolve: MagicMock
@@ -376,34 +376,33 @@ def test_build_streamlit_app_with_view_service(
     mock_nav = MagicMock()
     mock_st.navigation.return_value = mock_nav
 
-    # Configure a ViewService stand-in whose list_pages() feeds page assembly.
+    # Configure a handler standing in for a DI-resolved source (e.g. get_view_service(app).list_pages()).
     page_config = Page(
         route='/service',
         title='Service Page',
         view_module_path='tiferet_streamlit.blueprints.tests.test_streamlit',
         view_class_name='StubView',
     )
-    mock_view_service = MagicMock()
-    mock_view_service.list_pages.return_value = [page_config]
+    mock_get_page_configs = MagicMock(return_value=[page_config])
 
-    # Run with only a view_service.
-    build_streamlit_app('test_interface', view_service=mock_view_service)
+    # Run with only a get_page_configs handler.
+    build_streamlit_app('test_interface', get_page_configs=mock_get_page_configs)
 
-    # Assert list_pages was consulted and navigation ran.
-    mock_view_service.list_pages.assert_called_once()
+    # Assert the handler was invoked with the realized app and navigation ran.
+    mock_get_page_configs.assert_called_once_with(mock_app)
     mock_nav.run.assert_called_once()
 
-# ** test: build_streamlit_app_page_configs_take_precedence_over_view_service
+# ** test: build_streamlit_app_page_configs_take_precedence_over_get_page_configs
 @patch('tiferet_streamlit.contexts.page.st')
 @patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
 @patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
-def test_build_streamlit_app_page_configs_take_precedence_over_view_service(
+def test_build_streamlit_app_page_configs_take_precedence_over_get_page_configs(
         mock_resolve: MagicMock,
         mock_realize: MagicMock,
         mock_st: MagicMock,
     ) -> None:
     '''
-    Verify page_configs/pages precedence is unchanged when view_service is also given.
+    Verify page_configs/pages precedence is unchanged when get_page_configs is also given.
 
     :param mock_resolve: The mocked resolve_interface function.
     :type mock_resolve: MagicMock
@@ -424,24 +423,24 @@ def test_build_streamlit_app_page_configs_take_precedence_over_view_service(
     mock_st.navigation.return_value = mock_nav
     mock_st.Page.return_value = 'page_obj'
 
-    # Create a page config and an unused ViewService stand-in.
+    # Create a page config and an unused get_page_configs handler.
     page_config = Page(
         route='/config',
         title='Config Page',
         view_module_path='tiferet_streamlit.blueprints.tests.test_streamlit',
         view_class_name='StubView',
     )
-    mock_view_service = MagicMock()
+    mock_get_page_configs = MagicMock()
 
-    # Run with both page_configs and view_service.
+    # Run with both page_configs and get_page_configs.
     build_streamlit_app(
         'test_interface',
         page_configs=[page_config],
-        view_service=mock_view_service,
+        get_page_configs=mock_get_page_configs,
     )
 
-    # Assert the ViewService was never consulted since page_configs took precedence.
-    mock_view_service.list_pages.assert_not_called()
+    # Assert the handler was never consulted since page_configs took precedence.
+    mock_get_page_configs.assert_not_called()
     mock_st.Page.assert_called_once()
     call_kwargs = mock_st.Page.call_args[1]
     assert call_kwargs['url_path'] == '/config'

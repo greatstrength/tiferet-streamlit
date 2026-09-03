@@ -10,6 +10,8 @@ from tiferet_streamlit.assets.constants import (
     PAGE_NOT_FOUND_ID,
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
+    VIEW_SERVICE_ID,
+    INVALID_VIEW_SERVICE_ID,
     SESSION_KEY_PREFIX,
 )
 
@@ -20,6 +22,8 @@ from tiferet_streamlit.assets.constants import (
     PAGE_NOT_FOUND_ID,
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
+    VIEW_SERVICE_ID,
+    INVALID_VIEW_SERVICE_ID,
     SESSION_KEY_PREFIX,
 ])
 def test_all_constants_are_non_empty_strings(constant: str) -> None:
@@ -41,6 +45,7 @@ def test_all_constants_are_non_empty_strings(constant: str) -> None:
     PAGE_NOT_FOUND_ID,
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
+    INVALID_VIEW_SERVICE_ID,
 ])
 def test_constants_are_uppercase(constant: str) -> None:
     '''
@@ -56,7 +61,7 @@ def test_constants_are_uppercase(constant: str) -> None:
 # ** test: constants_are_distinct
 def test_constants_are_distinct() -> None:
     '''
-    Test that all three error code constants have unique values.
+    Test that all error code constants have unique values.
     '''
 
     # Collect all error code constants.
@@ -64,6 +69,7 @@ def test_constants_are_distinct() -> None:
         PAGE_NOT_FOUND_ID,
         VIEW_RENDER_FAILED_ID,
         INVALID_VIEW_TYPE_ID,
+        INVALID_VIEW_SERVICE_ID,
     ]
 
     # Assert all values are distinct.

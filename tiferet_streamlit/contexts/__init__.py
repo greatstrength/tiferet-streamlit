@@ -10,3 +10,6 @@ from .view import ViewContext, ViewComponent
 
 # ** export: page
 from .page import PageContext
+
+# ** export: di
+from .di import get_view_service

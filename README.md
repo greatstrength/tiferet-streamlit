@@ -99,6 +99,21 @@ pages = [
 StreamlitApp('my_interface', page_configs=pages)
 ```
 
+### ViewService-Backed Page Configuration
+
+Source pages from a `ViewService` implementation (e.g. a YAML-backed repository registered in your app's DI configuration) instead of constructing `Page` objects in Python. `build_streamlit_app`/`StreamlitApp` never import `ViewService` directly — pass a `get_page_configs` handler that resolves one through `get_view_service`, the sole DI-mediated accessor:
+
+```python
+from tiferet_streamlit import StreamlitApp, get_view_service
+
+StreamlitApp(
+    'my_interface',
+    get_page_configs=lambda app: get_view_service(app).list_pages(),
+)
+```
+
+`get_view_service(app, service_id='view_service', flags=None)` resolves the dependency through the app's DI context and verifies it implements `ViewService`, raising a structured `INVALID_VIEW_SERVICE_ID` error otherwise.
+
 ### Feature Dispatch
 
 Views dispatch Tiferet features for backend logic:
@@ -123,6 +138,7 @@ class CalcView(ViewContext):
 | `StreamlitApp` | `blueprints` | Alias for `build_streamlit_app` |
 | `Page` | `domain.view` | Page configuration domain object |
 | `ViewService` | `interfaces.view` | Abstract service for page management |
+| `get_view_service` | `contexts.di` | DI-mediated, verified accessor for a `ViewService` dependency |
 | `SessionCacheContext` | `contexts.session` | Session-state-backed cache with namespacing |
 | `ViewContext` | `contexts.view` | Page code-behind with lifecycle management and widget binding ([guide](docs/guides/widgets.md)) |
 | `ViewComponent` | `contexts.view` | Prop-driven sub-component with delegated widget binding |

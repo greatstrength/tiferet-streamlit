@@ -19,30 +19,31 @@ tiferet_streamlit/
 ├── __init__.py          — Version (0.2.0) and public exports
 ├── assets/              — Constants (error codes, session key prefix)
 ├── blueprints/          — Stateless blueprint functions (create_view, build_pages, build_streamlit_app, run)
-├── contexts/            — Runtime contexts (ViewContext, ViewComponent, SessionCacheContext, PageContext)
+├── contexts/            — Runtime contexts (ViewContext, ViewComponent, SessionCacheContext, PageContext, get_view_service)
 ├── domain/              — Domain objects (Page)
 ├── interfaces/          — Service interfaces (ViewService)
 ├── mappers/             — Mapper layer (reserved for future use)
-├── repos/               — Repository layer (reserved for future use)
+├── repos/               — Repository layer (YAML-backed ViewService implementation)
 └── utils/               — Utilities (widgets)
 ```
 
 ### Key Concepts
 
-- **Blueprint functions** (`blueprints/streamlit.py`): Stateless functions that assemble a Streamlit multi-page app. Functions: `create_view(view_cls, app, key, session)`, `build_pages(app, pages)`, `build_pages_from_config(app, page_configs)`, `build_streamlit_app(interface_id, pages, page_configs, **parameters)`, `run(interface_id, ...)`. `build_streamlit_app` is exported as the `StreamlitApp` alias.
+- **Blueprint functions** (`blueprints/streamlit.py`): Stateless functions that assemble a Streamlit multi-page app. Functions: `create_view(view_cls, app, key, session)`, `build_pages(app, pages)`, `build_pages_from_config(app, page_configs)`, `build_streamlit_app(interface_id, pages, page_configs, get_page_configs, **parameters)`, `run(interface_id, ...)`. `build_streamlit_app` is exported as the `StreamlitApp` alias. Blueprints never import service interfaces (e.g. `ViewService`) directly — `get_page_configs` is a caller-supplied `Callable[[AppInterfaceContext], List[Page]]` handler, letting a DI-resolved source plug in (see `get_view_service` below) without the blueprint layer holding any service reference.
 - **ViewContext** (`contexts/view.py`): Page code-behind class. Manages state via `SessionCacheContext`, dispatches Tiferet features via `AppInterfaceContext`, and defines Streamlit UI through an overridable `render()` method. `init_state()` is called once on first construction.
 - **ViewComponent** (`contexts/view.py`): Lightweight, prop-driven sub-component with parent `ViewContext` access. Callable via `__call__(**props)`.
 - **SessionCacheContext** (`contexts/session.py`): Cache backed by `st.session_state` with namespace isolation. Extends `tiferet.contexts.cache.CacheContext`. Methods: `get(key)`, `set(key, value)`, `delete(key)`, `clear()`.
 - **PageContext** (`contexts/page.py`): Multi-page navigation manager. `register_page(route, view, title, icon)` adds pages; `run()` builds `st.Page` objects and delegates to `st.navigation()`.
 - **Page** (`domain/view.py`): Pydantic domain object for config-driven page metadata. Fields: `route`, `title`, `icon`, `layout`, `view_module_path`, `view_class_name`. `get_view_type()` dynamically imports the ViewContext class.
-- **ViewService** (`interfaces/view.py`): Abstract service interface for page management (reserved for future repository-backed page loading).
+- **ViewService** (`interfaces/view.py`): Abstract service interface for page management, implemented by `ViewYamlRepository` (`repos/view.py`), a YAML-backed repository. Never imported directly by blueprints — reached only via `get_view_service`.
+- **get_view_service** (`contexts/di.py`): DI-mediated accessor that resolves a `ViewService` dependency by configuration ID (`app.features.services.get_dependency(...)`) and verifies the resolved object actually implements `ViewService`, raising `INVALID_VIEW_SERVICE_ID` otherwise. This is the sole sanctioned path to a `ViewService` instance.
 
 ### Runtime Flow
 
 1. `StreamlitApp(interface_id, pages=..., page_configs=...)` (alias for `build_streamlit_app`) is called.
 2. `resolve_interface(interface_id)` from `tiferet.blueprints.main` loads the app service and resolves the interface definition.
 3. `realize_interface(app_interface, interface_id)` builds and validates the concrete `AppInterfaceContext`.
-4. Pages are built via `build_pages_from_config(app, page_configs)` (if `page_configs` provided) or `build_pages(app, pages)` (if `pages` dict provided). Raises `PAGE_NOT_FOUND` error if neither is given.
+4. Pages are built via `build_pages_from_config(app, page_configs)` (if `page_configs` provided), `build_pages(app, pages)` (if `pages` dict provided), or `build_pages_from_config(app, get_page_configs(app))` (if a `get_page_configs` handler is provided, e.g. one backed by `get_view_service(app).list_pages()`). Raises `PAGE_NOT_FOUND` error if none is given.
 5. Each page calls `create_view(view_cls, app, key)` which instantiates the `ViewContext` subclass with a `SessionCacheContext`.
 6. `page_ctx.run()` builds `st.Page` objects and delegates to `st.navigation()` for Streamlit's multi-page routing.
 7. When a page is selected, `ViewContext.__call__()` → `render()` executes the view's Streamlit UI.
