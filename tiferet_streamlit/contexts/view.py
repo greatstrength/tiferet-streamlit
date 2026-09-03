@@ -3,7 +3,7 @@
 # *** imports
 
 # ** core
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 # ** infra
 from tiferet import TiferetError
@@ -14,6 +14,159 @@ from tiferet.events.static import RaiseError
 from ..assets.constants import VIEW_RENDER_FAILED_ID
 from ..domain import DispatchAuditRecord
 from .session import SessionCacheContext
+
+# *** functions
+
+# ** function: _bind_widget
+def _bind_widget(
+        session: SessionCacheContext,
+        key: str,
+        widget: Callable,
+        value_param: str = 'value',
+        default: Any = None,
+        **kwargs,
+    ) -> Any:
+    '''
+    Keep a native Streamlit widget's displayed value in sync with a
+    SessionCacheContext key, replacing the hand-wired read/draw/write
+    pattern every widget would otherwise repeat. Shared by
+    ViewContext.bind_widget and ViewComponent.bind_widget.
+
+    :param session: The session cache to read from and write back to.
+    :type session: SessionCacheContext
+    :param key: The session cache key to read from and write back to.
+    :type key: str
+    :param widget: The native Streamlit widget callable (e.g. st.text_input).
+    :type widget: Callable
+    :param value_param: The widget kwarg used to seed its current value.
+    :type value_param: str
+    :param default: The value to seed the widget with before it is ever set.
+    :type default: Any
+    :param kwargs: Additional keyword arguments forwarded to the widget untouched.
+    :type kwargs: dict
+    :return: The widget's return value, already written back to the cache.
+    :rtype: Any
+    '''
+
+    # Read the stored value before rendering, falling back to the default.
+    current = session.get(key)
+    if current is None:
+        current = default
+
+    # Draw the widget, seeding it with the current value.
+    kwargs[value_param] = current
+    new_value = widget(**kwargs)
+
+    # Write the widget's return value back to the cache.
+    session.set(key, new_value)
+
+    # Return the synced value.
+    return new_value
+
+# ** function: _bind_widget_dispatch
+def _bind_widget_dispatch(
+        session: SessionCacheContext,
+        dispatch: Callable,
+        key: str,
+        widget: Callable,
+        feature_id: str,
+        value_param: str = 'value',
+        default: Any = None,
+        dispatch_data: Callable[[Any], Dict] = None,
+        **kwargs,
+    ) -> Any:
+    '''
+    Compose _bind_widget with a change-triggered dispatch: after syncing,
+    call dispatch(feature_id, ...) only when the value actually changed
+    on this rerun. Shared by ViewContext.bind_widget_dispatch and
+    ViewComponent.bind_widget_dispatch.
+
+    :param session: The session cache to read from and write back to.
+    :type session: SessionCacheContext
+    :param dispatch: The dispatch callable to invoke on change.
+    :type dispatch: Callable
+    :param key: The session cache key to read from and write back to.
+    :type key: str
+    :param widget: The native Streamlit widget callable (e.g. st.number_input).
+    :type widget: Callable
+    :param feature_id: The Tiferet feature to dispatch on change.
+    :type feature_id: str
+    :param value_param: The widget kwarg used to seed its current value.
+    :type value_param: str
+    :param default: The value to seed the widget with before it is ever set.
+    :type default: Any
+    :param dispatch_data: Optional callable mapping the new value to dispatch kwargs.
+        Defaults to a fixed {key: new_value} payload.
+    :type dispatch_data: Callable[[Any], Dict]
+    :param kwargs: Additional keyword arguments forwarded to the widget untouched.
+    :type kwargs: dict
+    :return: The widget's return value, already written back to the cache.
+    :rtype: Any
+    '''
+
+    # Capture the prior value before this rerun's widget draw overwrites it.
+    before = session.get(key)
+
+    # Sync the widget's value as usual.
+    new_value = _bind_widget(
+        session,
+        key,
+        widget,
+        value_param=value_param,
+        default=default,
+        **kwargs,
+    )
+
+    # Only dispatch when the value actually changed on this rerun.
+    if new_value == before:
+        return new_value
+
+    # Build the dispatch payload and call the feature.
+    data = dispatch_data(new_value) if dispatch_data else {key: new_value}
+    dispatch(feature_id, **data)
+
+    # Return the synced value.
+    return new_value
+
+# ** function: _bind_trigger
+def _bind_trigger(
+        dispatch: Callable,
+        widget: Callable,
+        feature_id: str,
+        dispatch_data: Callable[[], Dict] = None,
+        **kwargs,
+    ) -> Any:
+    '''
+    Dispatch unconditionally when a trigger-style widget (e.g. st.button,
+    st.form_submit_button) returns truthy, with no reliance on a stored
+    previous value. Shared by ViewContext.bind_trigger and
+    ViewComponent.bind_trigger.
+
+    :param dispatch: The dispatch callable to invoke on a truthy return.
+    :type dispatch: Callable
+    :param widget: The native trigger-style Streamlit widget callable.
+    :type widget: Callable
+    :param feature_id: The Tiferet feature to dispatch on trigger.
+    :type feature_id: str
+    :param dispatch_data: Optional callable returning dispatch kwargs.
+        Defaults to an empty payload.
+    :type dispatch_data: Callable[[], Dict]
+    :param kwargs: Additional keyword arguments forwarded to the widget untouched.
+    :type kwargs: dict
+    :return: The widget's return value.
+    :rtype: Any
+    '''
+
+    # Draw the trigger widget.
+    triggered = widget(**kwargs)
+
+    # Dispatch unconditionally on a truthy return.
+    if triggered:
+        data = dispatch_data() if dispatch_data else {}
+        dispatch(feature_id, **data)
+
+    # Return the widget's return value.
+    return triggered
 
 # *** contexts
 
@@ -172,6 +325,112 @@ class ViewContext(object):
             for record in (self.session.get('_audit_log') or [])
         ]
 
+    # * method: bind_widget
+    def bind_widget(self,
+            key: str,
+            widget: Callable,
+            value_param: str = 'value',
+            default: Any = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Keep a native Streamlit widget's displayed value in sync with a
+        SessionCacheContext key owned by this view, replacing the
+        hand-wired read/draw/write pattern every widget would otherwise
+        repeat.
+
+        :param key: The session cache key to read from and write back to.
+        :type key: str
+        :param widget: The native Streamlit widget callable (e.g. st.text_input).
+        :type widget: Callable
+        :param value_param: The widget kwarg used to seed its current value.
+        :type value_param: str
+        :param default: The value to seed the widget with before it is ever set.
+        :type default: Any
+        :param kwargs: Additional keyword arguments forwarded to the widget untouched.
+        :type kwargs: dict
+        :return: The widget's return value, already written back to the cache.
+        :rtype: Any
+        '''
+
+        # Delegate to the shared module-level implementation.
+        return _bind_widget(self.session, key, widget, value_param=value_param, default=default, **kwargs)
+
+    # * method: bind_widget_dispatch
+    def bind_widget_dispatch(self,
+            key: str,
+            widget: Callable,
+            feature_id: str,
+            value_param: str = 'value',
+            default: Any = None,
+            dispatch_data: Callable[[Any], Dict] = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Compose bind_widget with a change-triggered dispatch: after syncing,
+        call self.dispatch(feature_id, ...) only when the value actually
+        changed on this rerun.
+
+        :param key: The session cache key to read from and write back to.
+        :type key: str
+        :param widget: The native Streamlit widget callable (e.g. st.number_input).
+        :type widget: Callable
+        :param feature_id: The Tiferet feature to dispatch on change.
+        :type feature_id: str
+        :param value_param: The widget kwarg used to seed its current value.
+        :type value_param: str
+        :param default: The value to seed the widget with before it is ever set.
+        :type default: Any
+        :param dispatch_data: Optional callable mapping the new value to dispatch kwargs.
+            Defaults to a fixed {key: new_value} payload.
+        :type dispatch_data: Callable[[Any], Dict]
+        :param kwargs: Additional keyword arguments forwarded to the widget untouched.
+        :type kwargs: dict
+        :return: The widget's return value, already written back to the cache.
+        :rtype: Any
+        '''
+
+        # Delegate to the shared module-level implementation.
+        return _bind_widget_dispatch(
+            self.session,
+            self.dispatch,
+            key,
+            widget,
+            feature_id,
+            value_param=value_param,
+            default=default,
+            dispatch_data=dispatch_data,
+            **kwargs,
+        )
+
+    # * method: bind_trigger
+    def bind_trigger(self,
+            widget: Callable,
+            feature_id: str,
+            dispatch_data: Callable[[], Dict] = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Dispatch unconditionally when a trigger-style widget (e.g. st.button,
+        st.form_submit_button) returns truthy, with no reliance on a stored
+        previous value.
+
+        :param widget: The native trigger-style Streamlit widget callable.
+        :type widget: Callable
+        :param feature_id: The Tiferet feature to dispatch on trigger.
+        :type feature_id: str
+        :param dispatch_data: Optional callable returning dispatch kwargs.
+            Defaults to an empty payload.
+        :type dispatch_data: Callable[[], Dict]
+        :param kwargs: Additional keyword arguments forwarded to the widget untouched.
+        :type kwargs: dict
+        :return: The widget's return value.
+        :rtype: Any
+        '''
+
+        # Delegate to the shared module-level implementation.
+        return _bind_trigger(self.dispatch, widget, feature_id, dispatch_data=dispatch_data, **kwargs)
+
     # * method: render
     def render(self):
         '''
@@ -235,6 +494,112 @@ class ViewComponent(object):
 
         # Set the parent view context.
         self.ctx = ctx
+
+    # * method: bind_widget
+    def bind_widget(self,
+            key: str,
+            widget: Callable,
+            value_param: str = 'value',
+            default: Any = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Keep a native Streamlit widget's displayed value in sync with a
+        SessionCacheContext key owned by the parent ctx, replacing the
+        hand-wired read/draw/write pattern every widget would otherwise
+        repeat.
+
+        :param key: The session cache key to read from and write back to.
+        :type key: str
+        :param widget: The native Streamlit widget callable (e.g. st.text_input).
+        :type widget: Callable
+        :param value_param: The widget kwarg used to seed its current value.
+        :type value_param: str
+        :param default: The value to seed the widget with before it is ever set.
+        :type default: Any
+        :param kwargs: Additional keyword arguments forwarded to the widget untouched.
+        :type kwargs: dict
+        :return: The widget's return value, already written back to the cache.
+        :rtype: Any
+        '''
+
+        # Delegate to the shared module-level implementation.
+        return _bind_widget(self.ctx.session, key, widget, value_param=value_param, default=default, **kwargs)
+
+    # * method: bind_widget_dispatch
+    def bind_widget_dispatch(self,
+            key: str,
+            widget: Callable,
+            feature_id: str,
+            value_param: str = 'value',
+            default: Any = None,
+            dispatch_data: Callable[[Any], Dict] = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Compose bind_widget with a change-triggered dispatch: after syncing,
+        call the parent ctx's dispatch(feature_id, ...) only when the value
+        actually changed on this rerun.
+
+        :param key: The session cache key to read from and write back to.
+        :type key: str
+        :param widget: The native Streamlit widget callable (e.g. st.number_input).
+        :type widget: Callable
+        :param feature_id: The Tiferet feature to dispatch on change.
+        :type feature_id: str
+        :param value_param: The widget kwarg used to seed its current value.
+        :type value_param: str
+        :param default: The value to seed the widget with before it is ever set.
+        :type default: Any
+        :param dispatch_data: Optional callable mapping the new value to dispatch kwargs.
+            Defaults to a fixed {key: new_value} payload.
+        :type dispatch_data: Callable[[Any], Dict]
+        :param kwargs: Additional keyword arguments forwarded to the widget untouched.
+        :type kwargs: dict
+        :return: The widget's return value, already written back to the cache.
+        :rtype: Any
+        '''
+
+        # Delegate to the shared module-level implementation.
+        return _bind_widget_dispatch(
+            self.ctx.session,
+            self.ctx.dispatch,
+            key,
+            widget,
+            feature_id,
+            value_param=value_param,
+            default=default,
+            dispatch_data=dispatch_data,
+            **kwargs,
+        )
+
+    # * method: bind_trigger
+    def bind_trigger(self,
+            widget: Callable,
+            feature_id: str,
+            dispatch_data: Callable[[], Dict] = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Dispatch unconditionally when a trigger-style widget (e.g. st.button,
+        st.form_submit_button) returns truthy, with no reliance on a stored
+        previous value.
+
+        :param widget: The native trigger-style Streamlit widget callable.
+        :type widget: Callable
+        :param feature_id: The Tiferet feature to dispatch on trigger.
+        :type feature_id: str
+        :param dispatch_data: Optional callable returning dispatch kwargs.
+            Defaults to an empty payload.
+        :type dispatch_data: Callable[[], Dict]
+        :param kwargs: Additional keyword arguments forwarded to the widget untouched.
+        :type kwargs: dict
+        :return: The widget's return value.
+        :rtype: Any
+        '''
+
+        # Delegate to the shared module-level implementation.
+        return _bind_trigger(self.ctx.dispatch, widget, feature_id, dispatch_data=dispatch_data, **kwargs)
 
     # * method: render
     def render(self, **props):
