@@ -30,7 +30,6 @@ def sample_page_data() -> dict:
         view_class_name='Page',
     )
 
-
 # ** fixture: sample_page
 @pytest.fixture
 def sample_page(sample_page_data: dict) -> Page:
@@ -44,7 +43,6 @@ def sample_page(sample_page_data: dict) -> Page:
     '''
 
     return Page(**sample_page_data)
-
 
 # *** tests
 
@@ -65,7 +63,6 @@ def test_page_required_fields(sample_page: Page, sample_page_data: dict) -> None
     assert sample_page.view_module_path == sample_page_data['view_module_path']
     assert sample_page.view_class_name == sample_page_data['view_class_name']
 
-
 # ** test: page_default_layout
 def test_page_default_layout(sample_page: Page) -> None:
     '''
@@ -78,7 +75,6 @@ def test_page_default_layout(sample_page: Page) -> None:
     # Assert the default layout value.
     assert sample_page.layout == 'centered'
 
-
 # ** test: page_default_icon_none
 def test_page_default_icon_none(sample_page: Page) -> None:
     '''
@@ -90,7 +86,6 @@ def test_page_default_icon_none(sample_page: Page) -> None:
 
     # Assert the default icon value.
     assert sample_page.icon is None
-
 
 # ** test: page_custom_layout
 def test_page_custom_layout(sample_page_data: dict) -> None:
@@ -107,7 +102,6 @@ def test_page_custom_layout(sample_page_data: dict) -> None:
     # Assert the custom layout value.
     assert page.layout == 'wide'
 
-
 # ** test: page_custom_icon
 def test_page_custom_icon(sample_page_data: dict) -> None:
     '''
@@ -123,7 +117,6 @@ def test_page_custom_icon(sample_page_data: dict) -> None:
     # Assert the custom icon value.
     assert page.icon == '🏠'
 
-
 # ** test: page_get_view_type
 def test_page_get_view_type(sample_page: Page) -> None:
     '''
@@ -138,7 +131,6 @@ def test_page_get_view_type(sample_page: Page) -> None:
 
     # Assert it returns the expected class.
     assert view_type is Page
-
 
 # ** test: page_get_view_type_invalid_module
 def test_page_get_view_type_invalid_module(sample_page_data: dict) -> None:
@@ -158,7 +150,6 @@ def test_page_get_view_type_invalid_module(sample_page_data: dict) -> None:
 
     assert exc_info.value.error_code == INVALID_VIEW_TYPE_ID
 
-
 # ** test: page_get_view_type_invalid_class
 def test_page_get_view_type_invalid_class(sample_page_data: dict) -> None:
     '''
@@ -176,7 +167,6 @@ def test_page_get_view_type_invalid_class(sample_page_data: dict) -> None:
         page.get_view_type()
 
     assert exc_info.value.error_code == INVALID_VIEW_TYPE_ID
-
 
 # ** test: page_rejects_extra_fields
 def test_page_rejects_extra_fields(sample_page_data: dict) -> None:

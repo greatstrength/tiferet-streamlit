@@ -55,7 +55,6 @@ def view_yaml_file(tmp_path: Path) -> Path:
     # Return the path to the file.
     return config_file
 
-
 # ** fixture: repository
 @pytest.fixture
 def repository(view_yaml_file: Path) -> ViewYamlRepository:
@@ -68,8 +67,7 @@ def repository(view_yaml_file: Path) -> ViewYamlRepository:
     :rtype: ViewYamlRepository
     '''
 
-    return ViewYamlRepository(view_yaml_file=str(view_yaml_file))
-
+    return ViewYamlRepository(view_config=str(view_yaml_file))
 
 # *** tests
 
@@ -103,7 +101,6 @@ def test_int_list_pages_round_trips_full_field_set(repository: ViewYamlRepositor
     assert about.icon is None
     assert about.layout == 'centered'
 
-
 # ** test_int: get_page_round_trips_matching_route
 def test_int_get_page_round_trips_matching_route(repository: ViewYamlRepository) -> None:
     '''
@@ -122,7 +119,6 @@ def test_int_get_page_round_trips_matching_route(repository: ViewYamlRepository)
     assert page.title == 'Home'
     assert page.icon == '🏠'
     assert page.layout == 'wide'
-
 
 # ** test_int: get_page_returns_none_for_unknown_route
 def test_int_get_page_returns_none_for_unknown_route(repository: ViewYamlRepository) -> None:

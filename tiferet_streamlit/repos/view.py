@@ -32,18 +32,18 @@ class ViewYamlRepository(ViewService):
     default_role: str
 
     # * init
-    def __init__(self, view_yaml_file: str, encoding: str = 'utf-8') -> None:
+    def __init__(self, view_config: str, encoding: str = 'utf-8') -> None:
         '''
         Initialize the view YAML repository.
 
-        :param view_yaml_file: The YAML configuration file path.
-        :type view_yaml_file: str
+        :param view_config: The YAML configuration file path.
+        :type view_config: str
         :param encoding: The file encoding (default is 'utf-8').
         :type encoding: str
         '''
 
         # Set the repository attributes.
-        self.yaml_file = view_yaml_file
+        self.yaml_file = view_config
         self.encoding = encoding
         self.default_role = 'to_data.yaml'
 

@@ -50,7 +50,6 @@ def create_view(
     # Instantiate and return the view.
     return view_cls(app=app, key=key, session=session)
 
-
 # ** blueprint: build_pages
 def build_pages(
         app,
@@ -81,7 +80,6 @@ def build_pages(
 
     # Return the page context.
     return page_ctx
-
 
 # ** blueprint: build_pages_from_config
 def build_pages_from_config(
@@ -121,7 +119,6 @@ def build_pages_from_config(
 
     # Return the page context.
     return page_ctx
-
 
 # ** blueprint: build_streamlit_app
 def build_streamlit_app(
@@ -175,7 +172,6 @@ def build_streamlit_app(
 
     # Run the page context.
     page_ctx.run()
-
 
 # ** blueprint: run
 def run(
