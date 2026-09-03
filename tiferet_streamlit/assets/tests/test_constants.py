@@ -7,7 +7,6 @@ import pytest
 
 # ** app
 from tiferet_streamlit.assets.constants import (
-    VIEW_NOT_INITIALIZED_ID,
     PAGE_NOT_FOUND_ID,
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
@@ -18,7 +17,6 @@ from tiferet_streamlit.assets.constants import (
 
 # ** test: all_constants_are_non_empty_strings
 @pytest.mark.parametrize('constant', [
-    VIEW_NOT_INITIALIZED_ID,
     PAGE_NOT_FOUND_ID,
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
@@ -38,10 +36,8 @@ def test_all_constants_are_non_empty_strings(constant: str) -> None:
     # Assert the constant is non-empty.
     assert len(constant) > 0
 
-
 # ** test: constants_are_uppercase
 @pytest.mark.parametrize('constant', [
-    VIEW_NOT_INITIALIZED_ID,
     PAGE_NOT_FOUND_ID,
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
@@ -57,16 +53,14 @@ def test_constants_are_uppercase(constant: str) -> None:
     # Assert the constant value is uppercase.
     assert constant == constant.upper()
 
-
 # ** test: constants_are_distinct
 def test_constants_are_distinct() -> None:
     '''
-    Test that all four error code constants have unique values.
+    Test that all three error code constants have unique values.
     '''
 
     # Collect all error code constants.
     error_codes = [
-        VIEW_NOT_INITIALIZED_ID,
         PAGE_NOT_FOUND_ID,
         VIEW_RENDER_FAILED_ID,
         INVALID_VIEW_TYPE_ID,

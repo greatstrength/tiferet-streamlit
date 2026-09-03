@@ -6,9 +6,12 @@
 from typing import Any, Dict, List
 
 # ** infra
+from tiferet import TiferetError
 from tiferet.contexts.app import AppInterfaceContext
+from tiferet.events.static import RaiseError
 
 # ** app
+from ..assets.constants import VIEW_RENDER_FAILED_ID
 from ..domain import DispatchAuditRecord
 from .session import SessionCacheContext
 
@@ -183,11 +186,33 @@ class ViewContext(object):
     def __call__(self):
         '''
         Make the view callable for Streamlit composition.
-        Delegates to render().
+        Delegates to render(), wrapping a concrete subclass's render()
+        failure into a structured error so operators can trace it back
+        to the failing view. A well-formed render() is unaffected.
+
+        :raises NotImplementedError: If render() is not overridden by a subclass.
+        :raises TiferetError: If an overridden render() raises any other exception,
+            carrying VIEW_RENDER_FAILED_ID and the original exception chained via
+            raise ... from.
         '''
 
-        # Delegate to render.
-        return self.render()
+        # Delegate to render, leaving the default, unoverridden render()'s
+        # NotImplementedError unwrapped since it signals an incomplete
+        # implementation rather than a runtime failure.
+        try:
+            return self.render()
+        except NotImplementedError:
+            raise
+
+        # Wrap any other render() failure as a structured, chained error.
+        except Exception as err:
+            try:
+                RaiseError.execute(
+                    error_code=VIEW_RENDER_FAILED_ID,
+                    view_key=self.key,
+                )
+            except TiferetError as failure:
+                raise failure from err
 
 # ** context: view_component
 class ViewComponent(object):

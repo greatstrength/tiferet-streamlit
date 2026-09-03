@@ -7,6 +7,8 @@ import pytest
 from unittest.mock import MagicMock
 
 # ** app
+from tiferet import TiferetError
+from tiferet_streamlit.assets.constants import VIEW_RENDER_FAILED_ID
 from tiferet_streamlit.contexts.session import SessionCacheContext
 from tiferet_streamlit.contexts.view import ViewContext, ViewComponent
 from tiferet_streamlit.domain.audit import DispatchAuditRecord
@@ -54,6 +56,17 @@ class RenderingView(ViewContext):
 
         # Return the current count.
         return count
+
+# ** helper: failing_view
+class FailingView(ViewContext):
+    '''
+    Concrete ViewContext whose render() always raises.
+    '''
+
+    # * method: render
+    def render(self):
+        '''Raise an arbitrary exception to simulate a render failure.'''
+        raise ValueError('boom')
 
 # ** helper: sample_component
 class SampleComponent(ViewComponent):
@@ -452,3 +465,71 @@ def test_component_raises_not_implemented(sample_view: SampleView) -> None:
     # Assert render raises NotImplementedError.
     with pytest.raises(NotImplementedError):
         comp.render()
+
+# *** tests: view_context render failure hardening
+
+# ** test: callable_wraps_render_failure
+def test_callable_wraps_render_failure(mock_app: MagicMock, mock_session_state: dict) -> None:
+    '''
+    Verify __call__() wraps a concrete render() failure into a structured
+    TiferetError carrying VIEW_RENDER_FAILED_ID.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Create a view whose render() always raises.
+    view = FailingView(app=mock_app, key='failing_view')
+
+    # Assert calling the view raises a structured TiferetError.
+    with pytest.raises(TiferetError) as exc_info:
+        view()
+
+    # Assert the structured error carries VIEW_RENDER_FAILED_ID.
+    assert exc_info.value.error_code == VIEW_RENDER_FAILED_ID
+
+# ** test: callable_wraps_render_failure_preserves_chain
+def test_callable_wraps_render_failure_preserves_chain(mock_app: MagicMock, mock_session_state: dict) -> None:
+    '''
+    Verify the original exception is preserved via exception chaining.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Create a view whose render() always raises.
+    view = FailingView(app=mock_app, key='failing_view')
+
+    # Assert the original exception is chained as the cause.
+    with pytest.raises(TiferetError) as exc_info:
+        view()
+
+    assert isinstance(exc_info.value.__cause__, ValueError)
+    assert str(exc_info.value.__cause__) == 'boom'
+
+# ** test: callable_does_not_wrap_default_not_implemented
+def test_callable_does_not_wrap_default_not_implemented(mock_app: MagicMock, mock_session_state: dict) -> None:
+    '''
+    Verify the default, unoverridden render()'s NotImplementedError
+    propagates through __call__() unwrapped.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Create a base ViewContext (render not overridden).
+    class BareView(ViewContext):
+        pass
+
+    view = BareView(app=mock_app, key='bare_call')
+
+    # Assert calling the view raises the raw NotImplementedError, not a
+    # wrapped TiferetError.
+    with pytest.raises(NotImplementedError):
+        view()
