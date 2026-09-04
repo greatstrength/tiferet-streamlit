@@ -42,6 +42,6 @@ ctx.run()
 
 ## Integration
 
-- Typically created by `StreamlitBuilder.build_pages()` or `StreamlitBuilder.build_pages_from_config()`.
+- Typically created by the `build_pages()` or `build_pages_from_config()` blueprint functions (`blueprints/streamlit.py`), invoked internally by `build_streamlit_app`/`StreamlitApp`.
 - Each registered view is a `ViewContext` instance (already constructed with `app` and `key`).
 - `run()` must be called from the main Streamlit script entry point.
