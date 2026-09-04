@@ -7,6 +7,8 @@ import pytest
 from pydantic import ValidationError
 
 # ** app
+from tiferet import TiferetError
+from tiferet_streamlit.assets.constants import INVALID_VIEW_TYPE_ID
 from tiferet_streamlit.domain.view import Page
 
 # *** fixtures
@@ -28,7 +30,6 @@ def sample_page_data() -> dict:
         view_class_name='Page',
     )
 
-
 # ** fixture: sample_page
 @pytest.fixture
 def sample_page(sample_page_data: dict) -> Page:
@@ -42,7 +43,6 @@ def sample_page(sample_page_data: dict) -> Page:
     '''
 
     return Page(**sample_page_data)
-
 
 # *** tests
 
@@ -63,7 +63,6 @@ def test_page_required_fields(sample_page: Page, sample_page_data: dict) -> None
     assert sample_page.view_module_path == sample_page_data['view_module_path']
     assert sample_page.view_class_name == sample_page_data['view_class_name']
 
-
 # ** test: page_default_layout
 def test_page_default_layout(sample_page: Page) -> None:
     '''
@@ -76,7 +75,6 @@ def test_page_default_layout(sample_page: Page) -> None:
     # Assert the default layout value.
     assert sample_page.layout == 'centered'
 
-
 # ** test: page_default_icon_none
 def test_page_default_icon_none(sample_page: Page) -> None:
     '''
@@ -88,7 +86,6 @@ def test_page_default_icon_none(sample_page: Page) -> None:
 
     # Assert the default icon value.
     assert sample_page.icon is None
-
 
 # ** test: page_custom_layout
 def test_page_custom_layout(sample_page_data: dict) -> None:
@@ -105,7 +102,6 @@ def test_page_custom_layout(sample_page_data: dict) -> None:
     # Assert the custom layout value.
     assert page.layout == 'wide'
 
-
 # ** test: page_custom_icon
 def test_page_custom_icon(sample_page_data: dict) -> None:
     '''
@@ -120,7 +116,6 @@ def test_page_custom_icon(sample_page_data: dict) -> None:
 
     # Assert the custom icon value.
     assert page.icon == '🏠'
-
 
 # ** test: page_get_view_type
 def test_page_get_view_type(sample_page: Page) -> None:
@@ -137,11 +132,10 @@ def test_page_get_view_type(sample_page: Page) -> None:
     # Assert it returns the expected class.
     assert view_type is Page
 
-
 # ** test: page_get_view_type_invalid_module
 def test_page_get_view_type_invalid_module(sample_page_data: dict) -> None:
     '''
-    Verify ModuleNotFoundError for a bad module path.
+    Verify a structured INVALID_VIEW_TYPE_ID error is raised for a bad module path.
 
     :param sample_page_data: The sample page data dictionary.
     :type sample_page_data: dict
@@ -150,15 +144,16 @@ def test_page_get_view_type_invalid_module(sample_page_data: dict) -> None:
     # Create a page with an invalid module path.
     page = Page(**{**sample_page_data, 'view_module_path': 'nonexistent.module'})
 
-    # Assert ModuleNotFoundError is raised.
-    with pytest.raises(ModuleNotFoundError):
+    # Assert a structured TiferetError with INVALID_VIEW_TYPE_ID is raised.
+    with pytest.raises(TiferetError) as exc_info:
         page.get_view_type()
 
+    assert exc_info.value.error_code == INVALID_VIEW_TYPE_ID
 
 # ** test: page_get_view_type_invalid_class
 def test_page_get_view_type_invalid_class(sample_page_data: dict) -> None:
     '''
-    Verify AttributeError for a bad class name.
+    Verify a structured INVALID_VIEW_TYPE_ID error is raised for a bad class name.
 
     :param sample_page_data: The sample page data dictionary.
     :type sample_page_data: dict
@@ -167,10 +162,11 @@ def test_page_get_view_type_invalid_class(sample_page_data: dict) -> None:
     # Create a page with an invalid class name.
     page = Page(**{**sample_page_data, 'view_class_name': 'NonexistentClass'})
 
-    # Assert AttributeError is raised.
-    with pytest.raises(AttributeError):
+    # Assert a structured TiferetError with INVALID_VIEW_TYPE_ID is raised.
+    with pytest.raises(TiferetError) as exc_info:
         page.get_view_type()
 
+    assert exc_info.value.error_code == INVALID_VIEW_TYPE_ID
 
 # ** test: page_rejects_extra_fields
 def test_page_rejects_extra_fields(sample_page_data: dict) -> None:

@@ -3,7 +3,7 @@
 # *** imports
 
 # ** core
-from typing import Dict, List, Type
+from typing import Callable, Dict, List, Type
 
 # ** infra
 from tiferet.blueprints.main import (
@@ -49,7 +49,6 @@ def create_view(
     # Instantiate and return the view.
     return view_cls(app=app, key=key, session=session)
 
-
 # ** blueprint: build_pages
 def build_pages(
         app,
@@ -80,7 +79,6 @@ def build_pages(
 
     # Return the page context.
     return page_ctx
-
 
 # ** blueprint: build_pages_from_config
 def build_pages_from_config(
@@ -121,12 +119,12 @@ def build_pages_from_config(
     # Return the page context.
     return page_ctx
 
-
 # ** blueprint: build_streamlit_app
 def build_streamlit_app(
         interface_id: str,
         pages: Dict[str, Type[ViewContext]] = None,
         page_configs: List[Page] = None,
+        get_page_configs: Callable[..., List[Page]] = None,
         **parameters,
     ):
     '''
@@ -139,6 +137,12 @@ def build_streamlit_app(
     :type pages: Dict[str, Type[ViewContext]]
     :param page_configs: Optional list of Page domain objects. Takes precedence over pages.
     :type page_configs: List[Page]
+    :param get_page_configs: Optional callable invoked with the realized app interface
+        context, returning a list of Page domain objects. Only consulted when neither
+        page_configs nor pages is provided, so their existing precedence is unchanged.
+        This is how a DI-resolved source (e.g. contexts.di.get_view_service(app).list_pages())
+        plugs in without this blueprint importing any service interface directly.
+    :type get_page_configs: Callable[..., List[Page]]
     :param parameters: Additional keyword arguments passed to resolve_interface.
     :type parameters: dict
     '''
@@ -157,6 +161,10 @@ def build_streamlit_app(
     elif pages is not None:
         page_ctx = build_pages(app, pages)
 
+    # Otherwise assemble pages via a caller-supplied handler.
+    elif get_page_configs is not None:
+        page_ctx = build_pages_from_config(app, get_page_configs(app))
+
     # Raise error if no pages provided.
     else:
         RaiseError.execute(
@@ -166,12 +174,12 @@ def build_streamlit_app(
     # Run the page context.
     page_ctx.run()
 
-
 # ** blueprint: run
 def run(
         interface_id: str,
         pages: Dict[str, Type[ViewContext]] = None,
         page_configs: List[Page] = None,
+        get_page_configs: Callable[..., List[Page]] = None,
         **parameters,
     ):
     '''
@@ -183,6 +191,9 @@ def run(
     :type pages: Dict[str, Type[ViewContext]]
     :param page_configs: Optional list of Page domain objects.
     :type page_configs: List[Page]
+    :param get_page_configs: Optional callable invoked with the realized app interface
+        context, returning a list of Page domain objects.
+    :type get_page_configs: Callable[..., List[Page]]
     :param parameters: Additional keyword arguments.
     :type parameters: dict
     '''
@@ -192,5 +203,6 @@ def run(
         interface_id,
         pages=pages,
         page_configs=page_configs,
+        get_page_configs=get_page_configs,
         **parameters,
     )

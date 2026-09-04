@@ -33,7 +33,6 @@ class StubView(ViewContext):
         '''Render stub.'''
         return 'stub'
 
-
 # *** fixtures
 
 # ** fixture: mock_session_state
@@ -50,7 +49,6 @@ def mock_session_state():
     with patch('streamlit.session_state', state):
         yield state
 
-
 # ** fixture: mock_app_interface
 @pytest.fixture
 def mock_app_interface() -> MagicMock:
@@ -61,7 +59,6 @@ def mock_app_interface() -> MagicMock:
     :rtype: MagicMock
     '''
     return MagicMock()
-
 
 # *** tests: create_view
 
@@ -82,7 +79,6 @@ def test_create_view_returns_instance(mock_app_interface: MagicMock) -> None:
     assert view.app is mock_app_interface
     assert view.key == 'test'
 
-
 # ** test: create_view_auto_namespace
 def test_create_view_auto_namespace(mock_app_interface: MagicMock) -> None:
     '''
@@ -97,7 +93,6 @@ def test_create_view_auto_namespace(mock_app_interface: MagicMock) -> None:
 
     # Assert the session namespace matches the key.
     assert view.session.namespace == 'ns_test'
-
 
 # ** test: create_view_custom_session
 def test_create_view_custom_session(mock_app_interface: MagicMock) -> None:
@@ -116,7 +111,6 @@ def test_create_view_custom_session(mock_app_interface: MagicMock) -> None:
 
     # Assert the custom session is used.
     assert view.session is custom_session
-
 
 # *** tests: build_pages
 
@@ -141,7 +135,6 @@ def test_build_pages_returns_page_context(mock_app_interface: MagicMock) -> None
     assert '/home' in page_ctx.pages
     assert '/about' in page_ctx.pages
 
-
 # ** test: build_pages_view_keys_match_routes
 def test_build_pages_view_keys_match_routes(mock_app_interface: MagicMock) -> None:
     '''
@@ -157,7 +150,6 @@ def test_build_pages_view_keys_match_routes(mock_app_interface: MagicMock) -> No
     # Assert the view key matches the route.
     view = page_ctx.pages['/home']['view']
     assert view.key == '/home'
-
 
 # *** tests: build_pages_from_config
 
@@ -187,7 +179,6 @@ def test_build_pages_from_config_returns_page_context(mock_app_interface: MagicM
     assert '/home' in page_ctx.pages
     assert page_ctx.pages['/home']['title'] == 'Home'
     assert page_ctx.pages['/home']['icon'] == '🏠'
-
 
 # *** tests: build_streamlit_app
 
@@ -230,7 +221,6 @@ def test_build_streamlit_app_with_pages(
 
     # Assert navigation ran.
     mock_nav.run.assert_called_once()
-
 
 # ** test: build_streamlit_app_with_page_configs
 @patch('tiferet_streamlit.contexts.page.st')
@@ -276,7 +266,6 @@ def test_build_streamlit_app_with_page_configs(
     # Assert navigation ran.
     mock_nav.run.assert_called_once()
 
-
 # ** test: build_streamlit_app_no_pages_raises_error
 @patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
 @patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
@@ -304,7 +293,6 @@ def test_build_streamlit_app_no_pages_raises_error(
         build_streamlit_app('test_interface')
 
     assert exc_info.value.error_code == PAGE_NOT_FOUND_ID
-
 
 # ** test: build_streamlit_app_page_configs_take_precedence
 @patch('tiferet_streamlit.contexts.page.st')
@@ -357,3 +345,102 @@ def test_build_streamlit_app_page_configs_take_precedence(
     call_kwargs = mock_st.Page.call_args[1]
     assert call_kwargs['url_path'] == '/config'
     assert call_kwargs['title'] == 'Config Page'
+
+# ** test: build_streamlit_app_with_get_page_configs
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+def test_build_streamlit_app_with_get_page_configs(
+        mock_resolve: MagicMock,
+        mock_realize: MagicMock,
+        mock_st: MagicMock,
+    ) -> None:
+    '''
+    Verify build_streamlit_app assembles pages via a get_page_configs handler.
+
+    :param mock_resolve: The mocked resolve_interface function.
+    :type mock_resolve: MagicMock
+    :param mock_realize: The mocked realize_interface function.
+    :type mock_realize: MagicMock
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    '''
+
+    # Configure mocks.
+    mock_app_interface = MagicMock()
+    mock_app = MagicMock()
+    mock_resolve.return_value = (mock_app_interface, [])
+    mock_realize.return_value = mock_app
+
+    # Set up st mocks.
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+
+    # Configure a handler standing in for a DI-resolved source (e.g. get_view_service(app).list_pages()).
+    page_config = Page(
+        route='/service',
+        title='Service Page',
+        view_module_path='tiferet_streamlit.blueprints.tests.test_streamlit',
+        view_class_name='StubView',
+    )
+    mock_get_page_configs = MagicMock(return_value=[page_config])
+
+    # Run with only a get_page_configs handler.
+    build_streamlit_app('test_interface', get_page_configs=mock_get_page_configs)
+
+    # Assert the handler was invoked with the realized app and navigation ran.
+    mock_get_page_configs.assert_called_once_with(mock_app)
+    mock_nav.run.assert_called_once()
+
+# ** test: build_streamlit_app_page_configs_take_precedence_over_get_page_configs
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+def test_build_streamlit_app_page_configs_take_precedence_over_get_page_configs(
+        mock_resolve: MagicMock,
+        mock_realize: MagicMock,
+        mock_st: MagicMock,
+    ) -> None:
+    '''
+    Verify page_configs/pages precedence is unchanged when get_page_configs is also given.
+
+    :param mock_resolve: The mocked resolve_interface function.
+    :type mock_resolve: MagicMock
+    :param mock_realize: The mocked realize_interface function.
+    :type mock_realize: MagicMock
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    '''
+
+    # Configure mocks.
+    mock_app_interface = MagicMock()
+    mock_app = MagicMock()
+    mock_resolve.return_value = (mock_app_interface, [])
+    mock_realize.return_value = mock_app
+
+    # Set up st mocks.
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+    mock_st.Page.return_value = 'page_obj'
+
+    # Create a page config and an unused get_page_configs handler.
+    page_config = Page(
+        route='/config',
+        title='Config Page',
+        view_module_path='tiferet_streamlit.blueprints.tests.test_streamlit',
+        view_class_name='StubView',
+    )
+    mock_get_page_configs = MagicMock()
+
+    # Run with both page_configs and get_page_configs.
+    build_streamlit_app(
+        'test_interface',
+        page_configs=[page_config],
+        get_page_configs=mock_get_page_configs,
+    )
+
+    # Assert the handler was never consulted since page_configs took precedence.
+    mock_get_page_configs.assert_not_called()
+    mock_st.Page.assert_called_once()
+    call_kwargs = mock_st.Page.call_args[1]
+    assert call_kwargs['url_path'] == '/config'
