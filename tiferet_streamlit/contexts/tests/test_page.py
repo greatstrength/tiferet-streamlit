@@ -10,9 +10,9 @@ from unittest.mock import MagicMock, patch, call
 from tiferet_streamlit.contexts.view import ViewContext
 from tiferet_streamlit.contexts.page import PageContext
 
-# *** helpers
+# *** classes
 
-# ** helper: stub_view
+# ** class: stub_view
 class StubView(ViewContext):
     '''
     Minimal ViewContext subclass for testing.
