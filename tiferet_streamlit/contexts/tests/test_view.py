@@ -87,7 +87,7 @@ def mock_app() -> MagicMock:
     '''
     MagicMock with run returning 'mock_result'.
 
-    :return: A mocked AppInterfaceContext.
+    :return: A mocked AppSessionContext.
     :rtype: MagicMock
     '''
 

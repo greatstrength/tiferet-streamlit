@@ -9,7 +9,7 @@ from typing import Any, Dict, Literal
 from pydantic import Field
 
 # ** app
-from tiferet.domain.settings import DomainObject
+from tiferet import DomainObject
 
 # *** models
 

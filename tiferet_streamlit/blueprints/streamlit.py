@@ -3,25 +3,53 @@
 # *** imports
 
 # ** core
+import inspect
 from pathlib import Path
-from typing import Callable, Dict, List, Type
+from typing import Any, Callable, Dict, List, Type
 
 # ** infra
 import streamlit as st
 import toml
-from tiferet.blueprints.main import (
-    resolve_interface,
-    realize_interface,
-)
-from tiferet.events.static import RaiseError
+from tiferet import TiferetError
+from tiferet.blueprints.app import build_app
 
 # ** app
-from ..assets.constants import PAGE_NOT_FOUND_ID
+from ..assets.constants import INCOMPATIBLE_APP_CONTEXT_ID, PAGE_NOT_FOUND_ID
 from ..contexts.session import SessionCacheContext
 from ..contexts.view import ViewContext
 from ..contexts.page import PageContext
 from ..domain.view import Page
 from ..domain.theme import Theme
+
+# *** functions
+
+# ** function: is_app_context_compatible
+def is_app_context_compatible(app: Any) -> bool:
+    '''
+    Duck-type check confirming an app object exposes a
+    run(feature_id, headers, data)-shaped callable, independent of its
+    concrete type. tiferet-streamlit targets AppSessionContext directly, so
+    this no longer guards against that shape specifically -- it guards
+    against any future tiferet release that changes AppSessionContext.run()'s
+    shape again.
+
+    :param app: The app object build_app() constructed, to check.
+    :type app: Any
+    :return: True if app.run is callable and accepts the expected call shape.
+    :rtype: bool
+    '''
+
+    # Resolve the run attribute and confirm it is callable.
+    run_method = getattr(app, 'run', None)
+    if not callable(run_method):
+        return False
+
+    # Confirm the callable can be bound with the expected call shape.
+    try:
+        inspect.signature(run_method).bind('feature_id', headers={}, data={})
+        return True
+    except (TypeError, ValueError):
+        return False
 
 # *** blueprints
 
@@ -37,8 +65,8 @@ def create_view(
 
     :param view_cls: The ViewContext subclass to instantiate.
     :type view_cls: Type[ViewContext]
-    :param app: The Tiferet app interface context.
-    :type app: AppInterfaceContext
+    :param app: The Tiferet app session context.
+    :type app: AppSessionContext
     :param key: Unique identifier for this view instance.
     :type key: str
     :param session: Optional session cache. Auto-created with namespace=key if not provided.
@@ -61,8 +89,8 @@ def build_pages(
     '''
     Build a PageContext from a route-to-ViewContext class mapping.
 
-    :param app: The Tiferet app interface context.
-    :type app: AppInterfaceContext
+    :param app: The Tiferet app session context.
+    :type app: AppSessionContext
     :param pages: Dictionary mapping route strings to ViewContext classes.
     :type pages: Dict[str, Type[ViewContext]]
     :return: The configured page context.
@@ -92,8 +120,8 @@ def build_pages_from_config(
     '''
     Build a PageContext from Page domain objects.
 
-    :param app: The Tiferet app interface context.
-    :type app: AppInterfaceContext
+    :param app: The Tiferet app session context.
+    :type app: AppSessionContext
     :param page_configs: List of Page domain objects.
     :type page_configs: List[Page]
     :return: The configured page context.
@@ -190,7 +218,7 @@ def build_streamlit_app(
         **parameters,
     ):
     '''
-    Primary entry point. Resolves and realizes the Tiferet interface,
+    Primary entry point. Builds the Tiferet app session context,
     builds pages, and runs the Streamlit application.
 
     :param interface_id: The Tiferet interface ID to load.
@@ -207,7 +235,7 @@ def build_streamlit_app(
     :type get_page_configs: Callable[..., List[Page]]
     :param theme: Optional declared theme. Omitting it leaves existing behavior unchanged.
     :type theme: Theme
-    :param parameters: Additional keyword arguments passed to resolve_interface.
+    :param parameters: Additional keyword arguments passed to build_app.
     :type parameters: dict
     '''
 
@@ -216,11 +244,23 @@ def build_streamlit_app(
         apply_theme_config(theme)
         inject_theme_css(theme)
 
-    # Resolve the interface definition.
-    app_interface, _ = resolve_interface(interface_id, **parameters)
+    # Build the fully resolved app session context in a single call.
+    app = build_app(interface_id, **parameters)
 
-    # Realize the app interface context.
-    app = realize_interface(app_interface, interface_id)
+    # Verify the constructed app exposes the run(feature_id, headers, data)-shaped
+    # callable ViewContext.dispatch() relies on. Checking here, at assembly
+    # time, fails fast before any page renders instead of surfacing an
+    # unstructured AttributeError/TypeError deep inside dispatch().
+    if not is_app_context_compatible(app):
+        TiferetError.raise_error(
+            INCOMPATIBLE_APP_CONTEXT_ID,
+            message=(
+                f'The app built for interface "{interface_id}" does not expose '
+                'a run(feature_id, headers, data)-shaped callable; the installed '
+                'tiferet version may be incompatible with tiferet-streamlit.'
+            ),
+            interface_id=interface_id,
+        )
 
     # Build pages from config if provided (takes precedence).
     if page_configs is not None:
@@ -236,8 +276,8 @@ def build_streamlit_app(
 
     # Raise error if no pages provided.
     else:
-        RaiseError.execute(
-            error_code=PAGE_NOT_FOUND_ID,
+        TiferetError.raise_error(
+            PAGE_NOT_FOUND_ID,
         )
 
     # Run the page context.

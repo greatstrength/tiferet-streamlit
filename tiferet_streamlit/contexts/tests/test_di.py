@@ -18,10 +18,10 @@ from tiferet_streamlit.interfaces.view import ViewService
 @pytest.fixture
 def mock_app() -> MagicMock:
     '''
-    MagicMock standing in for AppInterfaceContext, exposing the
+    MagicMock standing in for AppSessionContext, exposing the
     features.services.get_dependency DI resolution chain.
 
-    :return: A mocked app interface context.
+    :return: A mocked app session context.
     :rtype: MagicMock
     '''
 

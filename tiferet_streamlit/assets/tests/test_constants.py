@@ -12,6 +12,7 @@ from tiferet_streamlit.assets.constants import (
     INVALID_VIEW_TYPE_ID,
     VIEW_SERVICE_ID,
     INVALID_VIEW_SERVICE_ID,
+    INCOMPATIBLE_APP_CONTEXT_ID,
     SESSION_KEY_PREFIX,
 )
 
@@ -24,6 +25,7 @@ from tiferet_streamlit.assets.constants import (
     INVALID_VIEW_TYPE_ID,
     VIEW_SERVICE_ID,
     INVALID_VIEW_SERVICE_ID,
+    INCOMPATIBLE_APP_CONTEXT_ID,
     SESSION_KEY_PREFIX,
 ])
 def test_all_constants_are_non_empty_strings(constant: str) -> None:
@@ -46,6 +48,7 @@ def test_all_constants_are_non_empty_strings(constant: str) -> None:
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
     INVALID_VIEW_SERVICE_ID,
+    INCOMPATIBLE_APP_CONTEXT_ID,
 ])
 def test_constants_are_uppercase(constant: str) -> None:
     '''
@@ -70,6 +73,7 @@ def test_constants_are_distinct() -> None:
         VIEW_RENDER_FAILED_ID,
         INVALID_VIEW_TYPE_ID,
         INVALID_VIEW_SERVICE_ID,
+        INCOMPATIBLE_APP_CONTEXT_ID,
     ]
 
     # Assert all values are distinct.

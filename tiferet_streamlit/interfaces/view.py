@@ -7,7 +7,7 @@ from abc import abstractmethod
 from typing import List
 
 # ** infra
-from tiferet.interfaces.settings import Service
+from tiferet import Service
 
 # ** app
 from ..domain.view import Page

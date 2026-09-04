@@ -11,7 +11,10 @@ from unittest.mock import MagicMock, patch
 
 # ** app
 from tiferet import TiferetError
-from tiferet_streamlit.assets.constants import PAGE_NOT_FOUND_ID
+from tiferet_streamlit.assets.constants import (
+    INCOMPATIBLE_APP_CONTEXT_ID,
+    PAGE_NOT_FOUND_ID,
+)
 from tiferet_streamlit.contexts.session import SessionCacheContext
 from tiferet_streamlit.contexts.view import ViewContext
 from tiferet_streamlit.contexts.page import PageContext
@@ -24,6 +27,7 @@ from tiferet_streamlit.blueprints.streamlit import (
     apply_theme_config,
     inject_theme_css,
     build_streamlit_app,
+    is_app_context_compatible,
 )
 
 # *** helpers
@@ -59,9 +63,9 @@ def mock_session_state():
 @pytest.fixture
 def mock_app_interface() -> MagicMock:
     '''
-    MagicMock standing in for AppInterfaceContext.
+    MagicMock standing in for AppSessionContext.
 
-    :return: A mocked app interface context.
+    :return: A mocked app session context.
     :rtype: MagicMock
     '''
     return MagicMock()
@@ -117,6 +121,47 @@ def test_create_view_custom_session(mock_app_interface: MagicMock) -> None:
 
     # Assert the custom session is used.
     assert view.session is custom_session
+
+# *** tests: is_app_context_compatible
+
+# ** test: is_app_context_compatible_accepts_magic_mock
+def test_is_app_context_compatible_accepts_magic_mock(mock_app_interface: MagicMock) -> None:
+    '''
+    Verify a MagicMock test double is treated as compatible.
+
+    :param mock_app_interface: The mocked app interface context.
+    :type mock_app_interface: MagicMock
+    '''
+
+    # Assert the mock app is considered compatible.
+    assert is_app_context_compatible(mock_app_interface) is True
+
+# ** test: is_app_context_compatible_rejects_missing_run
+def test_is_app_context_compatible_rejects_missing_run() -> None:
+    '''
+    Verify an app object with no run attribute is incompatible.
+    '''
+
+    # Create an app object with no run attribute.
+    class NoRunApp:
+        pass
+
+    # Assert the app is considered incompatible.
+    assert is_app_context_compatible(NoRunApp()) is False
+
+# ** test: is_app_context_compatible_rejects_wrong_shaped_run
+def test_is_app_context_compatible_rejects_wrong_shaped_run() -> None:
+    '''
+    Verify an app object whose run() does not accept headers/data is incompatible.
+    '''
+
+    # Create an app object with an incompatible run() signature.
+    class WrongShapedApp:
+        def run(self, only_arg):
+            return only_arg
+
+    # Assert the app is considered incompatible.
+    assert is_app_context_compatible(WrongShapedApp()) is False
 
 # *** tests: build_pages
 
@@ -306,29 +351,23 @@ def test_inject_theme_css_noop_without_custom_css(mock_st: MagicMock) -> None:
 
 # ** test: build_streamlit_app_with_pages
 @patch('tiferet_streamlit.contexts.page.st')
-@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
-@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
 def test_build_streamlit_app_with_pages(
-        mock_resolve: MagicMock,
-        mock_realize: MagicMock,
+        mock_build_app: MagicMock,
         mock_st: MagicMock,
     ) -> None:
     '''
     Verify build_streamlit_app with pages dict calls page_ctx.run().
 
-    :param mock_resolve: The mocked resolve_interface function.
-    :type mock_resolve: MagicMock
-    :param mock_realize: The mocked realize_interface function.
-    :type mock_realize: MagicMock
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
     :param mock_st: The mocked streamlit module.
     :type mock_st: MagicMock
     '''
 
     # Configure mocks.
-    mock_app_interface = MagicMock()
     mock_app = MagicMock()
-    mock_resolve.return_value = (mock_app_interface, [])
-    mock_realize.return_value = mock_app
+    mock_build_app.return_value = mock_app
 
     # Set up st mocks.
     mock_nav = MagicMock()
@@ -337,38 +376,31 @@ def test_build_streamlit_app_with_pages(
     # Run with pages.
     build_streamlit_app('test_interface', pages={'/home': StubView})
 
-    # Assert resolve and realize were called.
-    mock_resolve.assert_called_once_with('test_interface')
-    mock_realize.assert_called_once_with(mock_app_interface, 'test_interface')
+    # Assert build_app was called.
+    mock_build_app.assert_called_once_with('test_interface')
 
     # Assert navigation ran.
     mock_nav.run.assert_called_once()
 
 # ** test: build_streamlit_app_with_page_configs
 @patch('tiferet_streamlit.contexts.page.st')
-@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
-@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
 def test_build_streamlit_app_with_page_configs(
-        mock_resolve: MagicMock,
-        mock_realize: MagicMock,
+        mock_build_app: MagicMock,
         mock_st: MagicMock,
     ) -> None:
     '''
     Verify build_streamlit_app with page_configs list calls page_ctx.run().
 
-    :param mock_resolve: The mocked resolve_interface function.
-    :type mock_resolve: MagicMock
-    :param mock_realize: The mocked realize_interface function.
-    :type mock_realize: MagicMock
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
     :param mock_st: The mocked streamlit module.
     :type mock_st: MagicMock
     '''
 
     # Configure mocks.
-    mock_app_interface = MagicMock()
     mock_app = MagicMock()
-    mock_resolve.return_value = (mock_app_interface, [])
-    mock_realize.return_value = mock_app
+    mock_build_app.return_value = mock_app
 
     # Set up st mocks.
     mock_nav = MagicMock()
@@ -389,26 +421,20 @@ def test_build_streamlit_app_with_page_configs(
     mock_nav.run.assert_called_once()
 
 # ** test: build_streamlit_app_no_pages_raises_error
-@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
-@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
 def test_build_streamlit_app_no_pages_raises_error(
-        mock_resolve: MagicMock,
-        mock_realize: MagicMock,
+        mock_build_app: MagicMock,
     ) -> None:
     '''
     Verify TiferetError is raised when no pages provided.
 
-    :param mock_resolve: The mocked resolve_interface function.
-    :type mock_resolve: MagicMock
-    :param mock_realize: The mocked realize_interface function.
-    :type mock_realize: MagicMock
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
     '''
 
     # Configure mocks.
-    mock_app_interface = MagicMock()
     mock_app = MagicMock()
-    mock_resolve.return_value = (mock_app_interface, [])
-    mock_realize.return_value = mock_app
+    mock_build_app.return_value = mock_app
 
     # Assert TiferetError with PAGE_NOT_FOUND_ID is raised.
     with pytest.raises(TiferetError) as exc_info:
@@ -416,31 +442,51 @@ def test_build_streamlit_app_no_pages_raises_error(
 
     assert exc_info.value.error_code == PAGE_NOT_FOUND_ID
 
+# ** test: build_streamlit_app_raises_on_incompatible_app_context
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
+def test_build_streamlit_app_raises_on_incompatible_app_context(
+        mock_build_app: MagicMock,
+    ) -> None:
+    '''
+    Verify a structured INCOMPATIBLE_APP_CONTEXT error is raised, instead of an
+    unstructured AttributeError/TypeError, when the constructed app object does
+    not expose a run(feature_id, headers, data)-shaped callable.
+
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
+    '''
+
+    # Configure mocks so build_app returns an incompatible app object.
+    class IncompatibleApp:
+        pass
+
+    mock_build_app.return_value = IncompatibleApp()
+
+    # Assert TiferetError with INCOMPATIBLE_APP_CONTEXT_ID is raised.
+    with pytest.raises(TiferetError) as exc_info:
+        build_streamlit_app('test_interface', pages={'/home': StubView})
+
+    assert exc_info.value.error_code == INCOMPATIBLE_APP_CONTEXT_ID
+
 # ** test: build_streamlit_app_page_configs_take_precedence
 @patch('tiferet_streamlit.contexts.page.st')
-@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
-@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
 def test_build_streamlit_app_page_configs_take_precedence(
-        mock_resolve: MagicMock,
-        mock_realize: MagicMock,
+        mock_build_app: MagicMock,
         mock_st: MagicMock,
     ) -> None:
     '''
     Verify page_configs preferred over pages when both given.
 
-    :param mock_resolve: The mocked resolve_interface function.
-    :type mock_resolve: MagicMock
-    :param mock_realize: The mocked realize_interface function.
-    :type mock_realize: MagicMock
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
     :param mock_st: The mocked streamlit module.
     :type mock_st: MagicMock
     '''
 
     # Configure mocks.
-    mock_app_interface = MagicMock()
     mock_app = MagicMock()
-    mock_resolve.return_value = (mock_app_interface, [])
-    mock_realize.return_value = mock_app
+    mock_build_app.return_value = mock_app
 
     # Set up st mocks.
     mock_nav = MagicMock()
@@ -470,29 +516,23 @@ def test_build_streamlit_app_page_configs_take_precedence(
 
 # ** test: build_streamlit_app_with_get_page_configs
 @patch('tiferet_streamlit.contexts.page.st')
-@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
-@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
 def test_build_streamlit_app_with_get_page_configs(
-        mock_resolve: MagicMock,
-        mock_realize: MagicMock,
+        mock_build_app: MagicMock,
         mock_st: MagicMock,
     ) -> None:
     '''
     Verify build_streamlit_app assembles pages via a get_page_configs handler.
 
-    :param mock_resolve: The mocked resolve_interface function.
-    :type mock_resolve: MagicMock
-    :param mock_realize: The mocked realize_interface function.
-    :type mock_realize: MagicMock
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
     :param mock_st: The mocked streamlit module.
     :type mock_st: MagicMock
     '''
 
     # Configure mocks.
-    mock_app_interface = MagicMock()
     mock_app = MagicMock()
-    mock_resolve.return_value = (mock_app_interface, [])
-    mock_realize.return_value = mock_app
+    mock_build_app.return_value = mock_app
 
     # Set up st mocks.
     mock_nav = MagicMock()
@@ -516,29 +556,23 @@ def test_build_streamlit_app_with_get_page_configs(
 
 # ** test: build_streamlit_app_page_configs_take_precedence_over_get_page_configs
 @patch('tiferet_streamlit.contexts.page.st')
-@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
-@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
 def test_build_streamlit_app_page_configs_take_precedence_over_get_page_configs(
-        mock_resolve: MagicMock,
-        mock_realize: MagicMock,
+        mock_build_app: MagicMock,
         mock_st: MagicMock,
     ) -> None:
     '''
     Verify page_configs/pages precedence is unchanged when get_page_configs is also given.
 
-    :param mock_resolve: The mocked resolve_interface function.
-    :type mock_resolve: MagicMock
-    :param mock_realize: The mocked realize_interface function.
-    :type mock_realize: MagicMock
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
     :param mock_st: The mocked streamlit module.
     :type mock_st: MagicMock
     '''
 
     # Configure mocks.
-    mock_app_interface = MagicMock()
     mock_app = MagicMock()
-    mock_resolve.return_value = (mock_app_interface, [])
-    mock_realize.return_value = mock_app
+    mock_build_app.return_value = mock_app
 
     # Set up st mocks.
     mock_nav = MagicMock()
@@ -571,11 +605,9 @@ def test_build_streamlit_app_page_configs_take_precedence_over_get_page_configs(
 @patch('tiferet_streamlit.blueprints.streamlit.inject_theme_css')
 @patch('tiferet_streamlit.blueprints.streamlit.apply_theme_config')
 @patch('tiferet_streamlit.contexts.page.st')
-@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
-@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
 def test_build_streamlit_app_with_theme_applies_theme(
-        mock_resolve: MagicMock,
-        mock_realize: MagicMock,
+        mock_build_app: MagicMock,
         mock_st: MagicMock,
         mock_apply_theme_config: MagicMock,
         mock_inject_theme_css: MagicMock,
@@ -584,10 +616,8 @@ def test_build_streamlit_app_with_theme_applies_theme(
     Verify a supplied theme is applied via both the native config path
     and the CSS injection path on every call.
 
-    :param mock_resolve: The mocked resolve_interface function.
-    :type mock_resolve: MagicMock
-    :param mock_realize: The mocked realize_interface function.
-    :type mock_realize: MagicMock
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
     :param mock_st: The mocked streamlit module used by PageContext.
     :type mock_st: MagicMock
     :param mock_apply_theme_config: The mocked apply_theme_config function.
@@ -597,10 +627,8 @@ def test_build_streamlit_app_with_theme_applies_theme(
     '''
 
     # Configure mocks.
-    mock_app_interface = MagicMock()
     mock_app = MagicMock()
-    mock_resolve.return_value = (mock_app_interface, [])
-    mock_realize.return_value = mock_app
+    mock_build_app.return_value = mock_app
     mock_nav = MagicMock()
     mock_st.navigation.return_value = mock_nav
 
@@ -616,11 +644,9 @@ def test_build_streamlit_app_with_theme_applies_theme(
 @patch('tiferet_streamlit.blueprints.streamlit.inject_theme_css')
 @patch('tiferet_streamlit.blueprints.streamlit.apply_theme_config')
 @patch('tiferet_streamlit.contexts.page.st')
-@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
-@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
 def test_build_streamlit_app_without_theme_leaves_behavior_unchanged(
-        mock_resolve: MagicMock,
-        mock_realize: MagicMock,
+        mock_build_app: MagicMock,
         mock_st: MagicMock,
         mock_apply_theme_config: MagicMock,
         mock_inject_theme_css: MagicMock,
@@ -629,10 +655,8 @@ def test_build_streamlit_app_without_theme_leaves_behavior_unchanged(
     Verify omitting theme entirely results in no config write and no
     CSS injection, i.e. existing behavior is unchanged.
 
-    :param mock_resolve: The mocked resolve_interface function.
-    :type mock_resolve: MagicMock
-    :param mock_realize: The mocked realize_interface function.
-    :type mock_realize: MagicMock
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
     :param mock_st: The mocked streamlit module used by PageContext.
     :type mock_st: MagicMock
     :param mock_apply_theme_config: The mocked apply_theme_config function.
@@ -642,10 +666,8 @@ def test_build_streamlit_app_without_theme_leaves_behavior_unchanged(
     '''
 
     # Configure mocks.
-    mock_app_interface = MagicMock()
     mock_app = MagicMock()
-    mock_resolve.return_value = (mock_app_interface, [])
-    mock_realize.return_value = mock_app
+    mock_build_app.return_value = mock_app
     mock_nav = MagicMock()
     mock_st.navigation.return_value = mock_nav
 

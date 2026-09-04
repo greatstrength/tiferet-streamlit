@@ -8,7 +8,7 @@ A Streamlit extension for the [Tiferet Framework](https://github.com/greatstreng
 pip install tiferet-streamlit
 ```
 
-Requires `tiferet>=2.0.0b3` and `streamlit>=1.30.0`.
+Requires `tiferet>=2.0.3` and `streamlit>=1.30.0`. `build_streamlit_app()` constructs the app via `tiferet.blueprints.app.build_app(...)`, yielding an `AppSessionContext`, and performs a runtime check on that constructed object, raising `INCOMPATIBLE_APP_CONTEXT` if it does not expose a `run(feature_id, headers, data)`-shaped callable — guarding against any future incompatible `tiferet` release.
 
 ## Quick Start
 
@@ -37,7 +37,7 @@ StreamlitApp('my_interface', pages={'/': HomeView})
 
 ### ViewContext
 
-The code-behind for a Streamlit page. Manages state via `SessionCacheContext`, dispatches Tiferet features via `AppInterfaceContext`, and defines UI through `render()`.
+The code-behind for a Streamlit page. Manages state via `SessionCacheContext`, dispatches Tiferet features via `AppSessionContext`, and defines UI through `render()`.
 
 - **`init_state()`** — Called once on first construction. Override to set initial state.
 - **`dispatch(feature_id, headers=None, **data)`** — Execute a Tiferet feature.

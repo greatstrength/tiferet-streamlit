@@ -23,20 +23,18 @@ class StubView(ViewContext):
         '''Render stub.'''
         return 'stub'
 
-
 # *** fixtures
 
 # ** fixture: mock_app
 @pytest.fixture
 def mock_app() -> MagicMock:
     '''
-    MagicMock standing in for AppInterfaceContext.
+    MagicMock standing in for AppSessionContext.
 
     :return: A mocked app context.
     :rtype: MagicMock
     '''
     return MagicMock()
-
 
 # ** fixture: page_context
 @pytest.fixture
@@ -48,7 +46,6 @@ def page_context() -> PageContext:
     :rtype: PageContext
     '''
     return PageContext()
-
 
 # *** tests
 
@@ -63,7 +60,6 @@ def test_empty_pages_by_default(page_context: PageContext) -> None:
 
     # Assert the pages dict is empty.
     assert page_context.pages == {}
-
 
 # ** test: register_page_stores_view
 def test_register_page_stores_view(page_context: PageContext, mock_app: MagicMock, mock_session_state: dict) -> None:
@@ -85,7 +81,6 @@ def test_register_page_stores_view(page_context: PageContext, mock_app: MagicMoc
     # Assert the view is stored.
     assert page_context.pages['/home']['view'] is view
 
-
 # ** test: register_page_default_title
 def test_register_page_default_title(page_context: PageContext, mock_app: MagicMock, mock_session_state: dict) -> None:
     '''
@@ -105,7 +100,6 @@ def test_register_page_default_title(page_context: PageContext, mock_app: MagicM
 
     # Assert the title defaults to the route.
     assert page_context.pages['/about']['title'] == '/about'
-
 
 # ** test: register_page_custom_title
 def test_register_page_custom_title(page_context: PageContext, mock_app: MagicMock, mock_session_state: dict) -> None:
@@ -127,7 +121,6 @@ def test_register_page_custom_title(page_context: PageContext, mock_app: MagicMo
     # Assert the custom title is stored.
     assert page_context.pages['/home']['title'] == 'Home Page'
 
-
 # ** test: register_page_icon
 def test_register_page_icon(page_context: PageContext, mock_app: MagicMock, mock_session_state: dict) -> None:
     '''
@@ -148,7 +141,6 @@ def test_register_page_icon(page_context: PageContext, mock_app: MagicMock, mock
     # Assert the icon is stored.
     assert page_context.pages['/home']['icon'] == '🏠'
 
-
 # ** test: register_page_default_icon_none
 def test_register_page_default_icon_none(page_context: PageContext, mock_app: MagicMock, mock_session_state: dict) -> None:
     '''
@@ -168,7 +160,6 @@ def test_register_page_default_icon_none(page_context: PageContext, mock_app: Ma
 
     # Assert the icon defaults to None.
     assert page_context.pages['/home']['icon'] is None
-
 
 # ** test: register_multiple_pages
 def test_register_multiple_pages(page_context: PageContext, mock_app: MagicMock, mock_session_state: dict) -> None:
@@ -194,7 +185,6 @@ def test_register_multiple_pages(page_context: PageContext, mock_app: MagicMock,
     assert '/a' in page_context.pages
     assert '/b' in page_context.pages
 
-
 # ** test: register_page_overwrites_existing
 def test_register_page_overwrites_existing(page_context: PageContext, mock_app: MagicMock, mock_session_state: dict) -> None:
     '''
@@ -217,7 +207,6 @@ def test_register_page_overwrites_existing(page_context: PageContext, mock_app: 
     # Assert the overwritten values.
     assert page_context.pages['/home']['view'] is view2
     assert page_context.pages['/home']['title'] == 'New'
-
 
 # ** test: run_calls_st_navigation
 @patch('tiferet_streamlit.contexts.page.st')
@@ -257,7 +246,6 @@ def test_run_calls_st_navigation(mock_st: MagicMock, mock_session_state: dict) -
     # Assert nav.run() was called.
     mock_nav.run.assert_called_once()
 
-
 # ** test: run_with_icon
 @patch('tiferet_streamlit.contexts.page.st')
 def test_run_with_icon(mock_st: MagicMock, mock_session_state: dict) -> None:
@@ -290,7 +278,6 @@ def test_run_with_icon(mock_st: MagicMock, mock_session_state: dict) -> None:
         url_path='/home',
         icon='🏠',
     )
-
 
 # ** test: run_multiple_pages_order
 @patch('tiferet_streamlit.contexts.page.st')
