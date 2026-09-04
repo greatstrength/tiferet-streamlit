@@ -2,9 +2,6 @@
 
 # *** imports
 
-# ** core
-from typing import List
-
 # ** infra
 from tiferet import TiferetError
 from tiferet.contexts.app import AppSessionContext
@@ -19,7 +16,7 @@ from ..interfaces.view import ViewService
 def get_view_service(
         app: AppSessionContext,
         service_id: str = VIEW_SERVICE_ID,
-        flags: List[str] = None,
+        *flags: str,
     ) -> ViewService:
     '''
     Resolve and verify a DI-registered ViewService by configuration ID.
@@ -32,8 +29,9 @@ def get_view_service(
     :type app: AppSessionContext
     :param service_id: The DI service configuration ID to resolve.
     :type service_id: str
-    :param flags: Optional feature/data flags to use for resolution.
-    :type flags: List[str]
+    :param flags: Optional feature/data flags to use for resolution, forwarded
+        positionally to match AppSessionContext.get_dependency(service_id, *flags).
+    :type flags: str
     :return: The resolved and verified ViewService instance.
     :rtype: ViewService
     :raises TiferetError: If the resolved dependency does not implement
@@ -41,8 +39,8 @@ def get_view_service(
         attempted service_id / resolved type for diagnosis.
     '''
 
-    # Resolve the dependency via the app's feature-level DI context.
-    resolved = app.features.services.get_dependency(service_id, flags)
+    # Resolve the dependency via the app session's flat DI resolution handler.
+    resolved = app.get_dependency(service_id, *flags)
 
     # Verify the resolved dependency actually implements ViewService.
     if not isinstance(resolved, ViewService):
