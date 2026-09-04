@@ -13,9 +13,9 @@ from tiferet_streamlit.contexts.session import SessionCacheContext
 from tiferet_streamlit.contexts.view import ViewContext, ViewComponent
 from tiferet_streamlit.domain.audit import DispatchAuditRecord
 
-# *** helpers
+# *** classes
 
-# ** helper: sample_view
+# ** class: sample_view
 class SampleView(ViewContext):
     '''
     Concrete ViewContext for testing. Tracks init_state calls.
@@ -33,7 +33,7 @@ class SampleView(ViewContext):
         '''Render the view.'''
         return 'rendered'
 
-# ** helper: rendering_view
+# ** class: rendering_view
 class RenderingView(ViewContext):
     '''
     ViewContext that tracks render count in session state.
@@ -57,7 +57,7 @@ class RenderingView(ViewContext):
         # Return the current count.
         return count
 
-# ** helper: failing_view
+# ** class: failing_view
 class FailingView(ViewContext):
     '''
     Concrete ViewContext whose render() always raises.
@@ -68,7 +68,7 @@ class FailingView(ViewContext):
         '''Raise an arbitrary exception to simulate a render failure.'''
         raise ValueError('boom')
 
-# ** helper: sample_component
+# ** class: sample_component
 class SampleComponent(ViewComponent):
     '''
     Concrete ViewComponent for testing.

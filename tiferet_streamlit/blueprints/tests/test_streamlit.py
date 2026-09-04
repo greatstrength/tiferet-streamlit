@@ -30,9 +30,9 @@ from tiferet_streamlit.blueprints.streamlit import (
     is_app_context_compatible,
 )
 
-# *** helpers
+# *** classes
 
-# ** helper: stub_view
+# ** class: stub_view
 class StubView(ViewContext):
     '''
     Minimal ViewContext subclass for testing.
