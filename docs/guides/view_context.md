@@ -2,7 +2,7 @@
 
 ## Overview
 
-`ViewContext` is the code-behind for a Streamlit page. It manages state via `SessionCacheContext`, dispatches Tiferet features via `AppInterfaceContext`, and defines Streamlit widgets through an overridable `render()` method.
+`ViewContext` is the code-behind for a Streamlit page. It manages state via `SessionCacheContext`, dispatches Tiferet features via `AppSessionContext`, and defines Streamlit widgets through an overridable `render()` method.
 
 ## Constructor
 
@@ -10,7 +10,7 @@
 ViewContext(app, key, session=None)
 ```
 
-- **`app`** — Tiferet `AppInterfaceContext` for feature dispatch.
+- **`app`** — Tiferet `AppSessionContext` for feature dispatch.
 - **`key`** — Unique identifier for this view (used as session namespace).
 - **`session`** — Optional `SessionCacheContext`. Auto-created with `namespace=key` if not provided.
 
@@ -63,6 +63,7 @@ class DashboardView(ViewContext):
 
 ## Integration
 
-- Register views with `PageContext` or `StreamlitBuilder` for multi-page apps.
+- Register views with `PageContext` (via `StreamlitApp`/`build_streamlit_app`) for multi-page apps.
 - Use `ViewComponent` for reusable sub-components within a view.
 - Access session state via `self.session` (a `SessionCacheContext` instance).
+- Use `bind_widget`/`bind_widget_dispatch`/`bind_trigger` to sync widgets and dispatch on change instead of hand-wiring `render()`; see [docs/guides/widgets.md](widgets.md).
