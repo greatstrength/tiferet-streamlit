@@ -4,7 +4,7 @@
 
 try:
     # ** export: domain
-    from .domain import Page, DispatchAuditRecord
+    from .domain import Page, DispatchAuditRecord, Theme
 
     # ** export: interfaces
     from .interfaces import ViewService

@@ -2,6 +2,9 @@
 
 # *** imports
 
+# ** core
+import toml
+
 # ** infra
 import pytest
 from unittest.mock import MagicMock, patch
@@ -13,10 +16,13 @@ from tiferet_streamlit.contexts.session import SessionCacheContext
 from tiferet_streamlit.contexts.view import ViewContext
 from tiferet_streamlit.contexts.page import PageContext
 from tiferet_streamlit.domain.view import Page
+from tiferet_streamlit.domain.theme import Theme
 from tiferet_streamlit.blueprints.streamlit import (
     create_view,
     build_pages,
     build_pages_from_config,
+    apply_theme_config,
+    inject_theme_css,
     build_streamlit_app,
 )
 
@@ -179,6 +185,122 @@ def test_build_pages_from_config_returns_page_context(mock_app_interface: MagicM
     assert '/home' in page_ctx.pages
     assert page_ctx.pages['/home']['title'] == 'Home'
     assert page_ctx.pages['/home']['icon'] == '🏠'
+
+# *** tests: apply_theme_config
+
+# ** test: apply_theme_config_writes_native_fields
+def test_apply_theme_config_writes_native_fields(tmp_path) -> None:
+    '''
+    Verify native [theme] fields are written to config.toml and can be
+    read back, satisfying the RFP's read-back verification requirement.
+
+    :param tmp_path: Pytest temporary directory fixture.
+    :type tmp_path: Path
+    '''
+
+    # Declare a theme with native fields.
+    theme = Theme(primary_color='#FF4B4B', text_color='#262730')
+    config_path = tmp_path / '.streamlit' / 'config.toml'
+
+    # Apply the theme config.
+    apply_theme_config(theme, config_path=str(config_path))
+
+    # Read the file back and assert the native fields were written.
+    written = toml.load(config_path)
+    assert written['theme']['primaryColor'] == '#FF4B4B'
+    assert written['theme']['textColor'] == '#262730'
+
+# ** test: apply_theme_config_merges_existing_content
+def test_apply_theme_config_merges_existing_content(tmp_path) -> None:
+    '''
+    Verify the write merges into [theme] without clobbering unrelated
+    existing sections or keys.
+
+    :param tmp_path: Pytest temporary directory fixture.
+    :type tmp_path: Path
+    '''
+
+    # Seed an existing config.toml with unrelated settings.
+    config_path = tmp_path / '.streamlit' / 'config.toml'
+    config_path.parent.mkdir(parents=True)
+    with config_path.open('w', encoding='utf-8') as file:
+        toml.dump({
+            'server': {'port': 8501},
+            'theme': {'font': 'monospace'},
+        }, file)
+
+    # Apply a theme that only sets a different native field.
+    theme = Theme(primary_color='#FF4B4B')
+    apply_theme_config(theme, config_path=str(config_path))
+
+    # Assert unrelated settings and untouched theme keys are preserved.
+    written = toml.load(config_path)
+    assert written['server']['port'] == 8501
+    assert written['theme']['font'] == 'monospace'
+    assert written['theme']['primaryColor'] == '#FF4B4B'
+
+# ** test: apply_theme_config_noop_without_native_fields
+def test_apply_theme_config_noop_without_native_fields(tmp_path) -> None:
+    '''
+    Verify no file is written when the theme declares no native fields.
+
+    :param tmp_path: Pytest temporary directory fixture.
+    :type tmp_path: Path
+    '''
+
+    # Declare a theme with only custom_css set.
+    theme = Theme(custom_css='.stButton { color: red; }')
+    config_path = tmp_path / '.streamlit' / 'config.toml'
+
+    # Apply the theme config.
+    apply_theme_config(theme, config_path=str(config_path))
+
+    # Assert no file was created.
+    assert not config_path.exists()
+
+# *** tests: inject_theme_css
+
+# ** test: inject_theme_css_injects_markdown
+@patch('tiferet_streamlit.blueprints.streamlit.st')
+def test_inject_theme_css_injects_markdown(mock_st: MagicMock) -> None:
+    '''
+    Verify custom_css is injected via st.markdown(unsafe_allow_html=True),
+    asserting the exact injected markdown content.
+
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    '''
+
+    # Declare a theme with custom CSS.
+    theme = Theme(custom_css='.stButton { color: red; }')
+
+    # Inject the CSS.
+    inject_theme_css(theme)
+
+    # Assert the markdown call and its content.
+    mock_st.markdown.assert_called_once_with(
+        '<style>.stButton { color: red; }</style>',
+        unsafe_allow_html=True,
+    )
+
+# ** test: inject_theme_css_noop_without_custom_css
+@patch('tiferet_streamlit.blueprints.streamlit.st')
+def test_inject_theme_css_noop_without_custom_css(mock_st: MagicMock) -> None:
+    '''
+    Verify st.markdown is not called when no custom_css was declared.
+
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    '''
+
+    # Declare a theme with no custom CSS.
+    theme = Theme(primary_color='#FF4B4B')
+
+    # Inject the CSS (a no-op in this case).
+    inject_theme_css(theme)
+
+    # Assert markdown was never called.
+    mock_st.markdown.assert_not_called()
 
 # *** tests: build_streamlit_app
 
@@ -444,3 +566,92 @@ def test_build_streamlit_app_page_configs_take_precedence_over_get_page_configs(
     mock_st.Page.assert_called_once()
     call_kwargs = mock_st.Page.call_args[1]
     assert call_kwargs['url_path'] == '/config'
+
+# ** test: build_streamlit_app_with_theme_applies_theme
+@patch('tiferet_streamlit.blueprints.streamlit.inject_theme_css')
+@patch('tiferet_streamlit.blueprints.streamlit.apply_theme_config')
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+def test_build_streamlit_app_with_theme_applies_theme(
+        mock_resolve: MagicMock,
+        mock_realize: MagicMock,
+        mock_st: MagicMock,
+        mock_apply_theme_config: MagicMock,
+        mock_inject_theme_css: MagicMock,
+    ) -> None:
+    '''
+    Verify a supplied theme is applied via both the native config path
+    and the CSS injection path on every call.
+
+    :param mock_resolve: The mocked resolve_interface function.
+    :type mock_resolve: MagicMock
+    :param mock_realize: The mocked realize_interface function.
+    :type mock_realize: MagicMock
+    :param mock_st: The mocked streamlit module used by PageContext.
+    :type mock_st: MagicMock
+    :param mock_apply_theme_config: The mocked apply_theme_config function.
+    :type mock_apply_theme_config: MagicMock
+    :param mock_inject_theme_css: The mocked inject_theme_css function.
+    :type mock_inject_theme_css: MagicMock
+    '''
+
+    # Configure mocks.
+    mock_app_interface = MagicMock()
+    mock_app = MagicMock()
+    mock_resolve.return_value = (mock_app_interface, [])
+    mock_realize.return_value = mock_app
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+
+    # Run with a declared theme.
+    theme = Theme(primary_color='#FF4B4B', custom_css='.stButton { color: red; }')
+    build_streamlit_app('test_interface', pages={'/home': StubView}, theme=theme)
+
+    # Assert both theme application paths were invoked with the theme.
+    mock_apply_theme_config.assert_called_once_with(theme)
+    mock_inject_theme_css.assert_called_once_with(theme)
+
+# ** test: build_streamlit_app_without_theme_leaves_behavior_unchanged
+@patch('tiferet_streamlit.blueprints.streamlit.inject_theme_css')
+@patch('tiferet_streamlit.blueprints.streamlit.apply_theme_config')
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.blueprints.streamlit.realize_interface')
+@patch('tiferet_streamlit.blueprints.streamlit.resolve_interface')
+def test_build_streamlit_app_without_theme_leaves_behavior_unchanged(
+        mock_resolve: MagicMock,
+        mock_realize: MagicMock,
+        mock_st: MagicMock,
+        mock_apply_theme_config: MagicMock,
+        mock_inject_theme_css: MagicMock,
+    ) -> None:
+    '''
+    Verify omitting theme entirely results in no config write and no
+    CSS injection, i.e. existing behavior is unchanged.
+
+    :param mock_resolve: The mocked resolve_interface function.
+    :type mock_resolve: MagicMock
+    :param mock_realize: The mocked realize_interface function.
+    :type mock_realize: MagicMock
+    :param mock_st: The mocked streamlit module used by PageContext.
+    :type mock_st: MagicMock
+    :param mock_apply_theme_config: The mocked apply_theme_config function.
+    :type mock_apply_theme_config: MagicMock
+    :param mock_inject_theme_css: The mocked inject_theme_css function.
+    :type mock_inject_theme_css: MagicMock
+    '''
+
+    # Configure mocks.
+    mock_app_interface = MagicMock()
+    mock_app = MagicMock()
+    mock_resolve.return_value = (mock_app_interface, [])
+    mock_realize.return_value = mock_app
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+
+    # Run without a theme.
+    build_streamlit_app('test_interface', pages={'/home': StubView})
+
+    # Assert neither theme application path was invoked.
+    mock_apply_theme_config.assert_not_called()
+    mock_inject_theme_css.assert_not_called()
