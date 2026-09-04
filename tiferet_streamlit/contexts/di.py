@@ -6,8 +6,8 @@
 from typing import List
 
 # ** infra
-from tiferet.contexts.app import AppInterfaceContext
-from tiferet.events.static import RaiseError
+from tiferet import TiferetError
+from tiferet.contexts.app import AppSessionContext
 
 # ** app
 from ..assets.constants import INVALID_VIEW_SERVICE_ID, VIEW_SERVICE_ID
@@ -17,7 +17,7 @@ from ..interfaces.view import ViewService
 
 # ** function: get_view_service
 def get_view_service(
-        app: AppInterfaceContext,
+        app: AppSessionContext,
         service_id: str = VIEW_SERVICE_ID,
         flags: List[str] = None,
     ) -> ViewService:
@@ -28,8 +28,8 @@ def get_view_service(
     callers (blueprints included) never import ViewService or a concrete
     repository directly, they resolve one through this accessor instead.
 
-    :param app: The realized Tiferet app interface context.
-    :type app: AppInterfaceContext
+    :param app: The realized Tiferet app session context.
+    :type app: AppSessionContext
     :param service_id: The DI service configuration ID to resolve.
     :type service_id: str
     :param flags: Optional feature/data flags to use for resolution.
@@ -46,8 +46,8 @@ def get_view_service(
 
     # Verify the resolved dependency actually implements ViewService.
     if not isinstance(resolved, ViewService):
-        RaiseError.execute(
-            error_code=INVALID_VIEW_SERVICE_ID,
+        TiferetError.raise_error(
+            INVALID_VIEW_SERVICE_ID,
             service_id=service_id,
             resolved_type=type(resolved).__name__,
         )

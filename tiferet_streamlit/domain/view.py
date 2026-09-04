@@ -9,8 +9,7 @@ import importlib
 from pydantic import Field
 
 # ** app
-from tiferet.domain.settings import DomainObject
-from tiferet.events.static import RaiseError
+from tiferet import DomainObject, TiferetError
 from ..assets.constants import INVALID_VIEW_TYPE_ID
 
 # *** models
@@ -77,8 +76,8 @@ class Page(DomainObject):
 
         # Re-raise a structured error carrying the attempted module path and class name.
         except (ModuleNotFoundError, AttributeError) as e:
-            RaiseError.execute(
-                error_code=INVALID_VIEW_TYPE_ID,
+            TiferetError.raise_error(
+                INVALID_VIEW_TYPE_ID,
                 view_module_path=self.view_module_path,
                 view_class_name=self.view_class_name,
                 exception=str(e),
