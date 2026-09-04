@@ -16,9 +16,9 @@ from tiferet_streamlit.contexts.di import get_view_service
 from tiferet_streamlit.interfaces.view import ViewService
 from tiferet_streamlit.repos.view import ViewYamlRepository
 
-# *** helpers
+# *** classes
 
-# ** helper: fixed_container_resolver
+# ** class: fixed_container_resolver
 class FixedContainerResolver(ServiceResolver):
     '''
     A minimal concrete ServiceResolver that always builds the same
