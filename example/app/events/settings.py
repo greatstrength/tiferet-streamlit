@@ -27,12 +27,12 @@ class BasicCalcEvent(DomainEvent):
         # Check if the value is a valid number.
         is_valid = isinstance(value, str) and (value.isdigit() or (value.replace('.', '', 1).isdigit() and value.count('.') < 2))
 
-        # Verify the value.
+        # Verify the value, passing the offending input as a named format argument.
         self.verify(
             is_valid,
             'INVALID_INPUT',
-            f"Invalid number: {value}",
-            value
+            message=f"Invalid number: {value}",
+            value=value,
         )
 
         # If valid, return the value as a float or int.

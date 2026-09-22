@@ -39,6 +39,6 @@ The app launches with two pages:
 
 - **`app/events/settings.py`** — `BasicCalcEvent` base class with `verify_number()` validation
 - **`app/events/calc.py`** — Five arithmetic domain events
-- **`config.yml`** — Consolidated Tiferet configuration (interfaces, services, errors, features)
+- **`config.yml`** — Consolidated Tiferet configuration (sessions, services, errors, features)
 - **`views.py`** — `CalculatorView`, `AboutView`, `NumberInput`, `ResultDisplay`
 - **`app.py`** — Entry point using `StreamlitApp`

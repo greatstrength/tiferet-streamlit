@@ -8,7 +8,7 @@ A Streamlit extension for the [Tiferet Framework](https://github.com/greatstreng
 pip install tiferet-streamlit
 ```
 
-Requires `tiferet>=2.0.3` and `streamlit>=1.30.0`. `build_streamlit_app()` constructs the app via `tiferet.blueprints.app.build_app(...)`, yielding an `AppSessionContext`, and performs a runtime check on that constructed object, raising `INCOMPATIBLE_APP_CONTEXT` if it does not expose a `run(feature_id, headers, data)`-shaped callable — guarding against any future incompatible `tiferet` release.
+Requires `tiferet>=2.1.0` and `streamlit>=1.30.0`. `build_streamlit_app()` constructs the app via `tiferet.blueprints.app.build_app(...)`, yielding an `AppSessionContext`, and performs a runtime check on that constructed object, raising `INCOMPATIBLE_APP_CONTEXT` if it does not expose a `run(feature_id, headers, data)`-shaped callable — guarding against any future incompatible `tiferet` release.
 
 ## Quick Start
 
