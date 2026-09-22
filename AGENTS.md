@@ -8,7 +8,7 @@
 - **Branch:** `main` (trunk) / `v1.x-proto` (prototype strand, currently ahead of trunk)
 - **Python:** ≥ 3.10
 - **Version:** `1.0.0a8`
-- **Dependencies:** `tiferet >= 2.0.3`, `streamlit >= 1.30.0`, `toml >= 0.10`
+- **Dependencies:** `tiferet >= 2.1.0`, `streamlit >= 1.30.0`, `toml >= 0.10`
 
 ## Architecture
 
@@ -57,7 +57,7 @@ tiferet_streamlit/
 Applications are configured via a consolidated YAML file (e.g., `config.yml`):
 
 ```yaml
-interfaces:
+sessions:
   my_app:
     name: My App
     description: A Streamlit app powered by Tiferet
@@ -72,7 +72,7 @@ features:
     my_feature:
       name: My Feature
       commands:
-        - attribute_id: my_event
+        - service_id: my_event
           name: Execute my event
 
 errors:
@@ -115,7 +115,7 @@ All code follows tiferet v2 artifact comment conventions (`# ***`, `# **`, `# *`
 ## Migration Notes
 
 - **v0.1.x → v0.2.0 (Builders → Blueprints):** The `StreamlitBuilder(AppBuilder)` class was replaced by stateless blueprint functions in `blueprints/streamlit.py`. `from tiferet_streamlit import StreamlitBuilder` → `from tiferet_streamlit import StreamlitApp` (or `build_streamlit_app`). `app = StreamlitApp(); app.load_app_service(); app.run(id, pages=...)` → `StreamlitApp(id, pages=...)` (single call). `builders/` removed, replaced by `blueprints/`.
-- **v0.2.0 → v1.0.0b1 prototype round (AppInterfaceContext → AppSessionContext):** `tiferet>=2.0.3` replaced `tiferet.blueprints.main`'s `resolve_interface`/`realize_interface` with `tiferet.blueprints.app.build_app(interface_id, ...) -> AppSessionContext`. `ViewContext.app` is now typed as `AppSessionContext`; `dispatch()`'s call shape (`run(feature_id, headers, data)`) is unchanged. This round also added widget binding (`bind_widget`/`bind_widget_dispatch`/`bind_trigger`), dispatch audit logging (`audit_log`), config-driven theming (`Theme`), a `ViewService`-backed page configuration store (`ViewYamlRepository`, `get_view_service`), and `VIEW_RENDER_FAILED_ID`/`INCOMPATIBLE_APP_CONTEXT_ID` structured error handling.
+- **v0.2.0 → v1.0.0b1 prototype round (AppInterfaceContext → AppSessionContext):** `tiferet>=2.1.0` (the `AppSessionContext` replacement landed in `2.0.3`) replaced `tiferet.blueprints.main`'s `resolve_interface`/`realize_interface` with `tiferet.blueprints.app.build_app(interface_id, ...) -> AppSessionContext`. Pass `app_config`, not `app_yaml_file`. Session config lives under `sessions:`, and feature steps use `service_id`. `ViewContext.app` is now typed as `AppSessionContext`; `dispatch()`'s call shape (`run(feature_id, headers, data)`) is unchanged. This round also added widget binding (`bind_widget`/`bind_widget_dispatch`/`bind_trigger`), dispatch audit logging (`audit_log`), config-driven theming (`Theme`), a `ViewService`-backed page configuration store (`ViewYamlRepository`, `get_view_service`), and `VIEW_RENDER_FAILED_ID`/`INCOMPATIBLE_APP_CONTEXT_ID` structured error handling.
 
 ## Contributing
 

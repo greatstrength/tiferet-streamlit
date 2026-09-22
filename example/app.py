@@ -7,4 +7,4 @@ from views import CalculatorView, AboutView
 StreamlitApp('calc_app', pages={
     'calculator': CalculatorView,
     'about': AboutView,
-}, app_yaml_file='config.yml')
+}, app_config='config.yml')
