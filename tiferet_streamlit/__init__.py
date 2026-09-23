@@ -10,7 +10,7 @@ try:
     from .interfaces import ViewService
 
     # ** export: contexts
-    from .contexts import SessionCacheContext, ViewContext, ViewComponent, PageContext
+    from .contexts import SessionCacheContext, ViewContext, ViewComponent, PageContext, get_view_service
 
     # ** export: blueprints
     from .blueprints import build_streamlit_app, build_streamlit_app as StreamlitApp
