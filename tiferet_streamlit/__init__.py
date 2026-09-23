@@ -3,7 +3,7 @@
 # *** exports
 
 # ** export: domain
-from .domain import Page, Theme
+from .domain import Page, Theme, DispatchAuditRecord
 
 try:
     # ** export: interfaces
