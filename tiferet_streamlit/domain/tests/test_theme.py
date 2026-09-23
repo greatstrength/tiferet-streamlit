@@ -30,7 +30,6 @@ def test_theme_defaults_are_none() -> None:
     # Assert the native map is empty.
     assert theme.native_fields == {}
 
-
 # ** test: theme_is_exported
 def test_theme_is_exported() -> None:
     '''
@@ -40,7 +39,6 @@ def test_theme_is_exported() -> None:
     # Assert both public names are this model.
     assert DomainTheme is Theme
     assert PackageTheme is Theme
-
 
 # ** test: native_fields_uses_streamlit_keys
 def test_native_fields_uses_streamlit_keys() -> None:
@@ -59,7 +57,6 @@ def test_native_fields_uses_streamlit_keys() -> None:
         'primaryColor': '#ff4b4b',
         'font': 'serif',
     }
-
 
 # ** test: native_fields_maps_every_set_attribute
 def test_native_fields_maps_every_set_attribute() -> None:
@@ -87,7 +84,6 @@ def test_native_fields_maps_every_set_attribute() -> None:
         'textColor': '#444444',
         'font': 'monospace',
     }
-
 
 # ** test: native_fields_omits_custom_css
 def test_native_fields_omits_custom_css() -> None:
