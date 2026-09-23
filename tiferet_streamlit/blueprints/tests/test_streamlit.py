@@ -5,6 +5,7 @@
 # ** infra
 import pytest
 from unittest.mock import MagicMock, patch
+from tiferet.contexts.app import AppSessionContext
 
 # ** app
 from tiferet import TiferetError
@@ -59,12 +60,14 @@ def mock_session_state():
 @pytest.fixture
 def mock_app_interface() -> MagicMock:
     '''
-    MagicMock standing in for AppInterfaceContext.
+    AppSessionContext double exposing run, used as the view app.
 
-    :return: A mocked app interface context.
+    :return: A mocked AppSessionContext.
     :rtype: MagicMock
     '''
-    return MagicMock()
+
+    # Create an app-session double that exposes run.
+    return MagicMock(spec=AppSessionContext)
 
 
 # *** tests: create_view
