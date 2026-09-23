@@ -32,7 +32,6 @@ class SampleView(ViewContext):
         '''Render the view.'''
         return 'rendered'
 
-
 # ** helper: rendering_view
 class RenderingView(ViewContext):
     '''
@@ -57,7 +56,6 @@ class RenderingView(ViewContext):
         # Return the current count.
         return count
 
-
 # ** helper: sample_component
 class SampleComponent(ViewComponent):
     '''
@@ -68,7 +66,6 @@ class SampleComponent(ViewComponent):
     def render(self, **props):
         '''Render the component with props.'''
         return props
-
 
 # *** fixtures
 
@@ -87,7 +84,6 @@ def mock_app() -> MagicMock:
     app.run.return_value = 'mock_result'
     return app
 
-
 # ** fixture: sample_view
 @pytest.fixture
 def sample_view(mock_app: MagicMock, mock_session_state: dict) -> SampleView:
@@ -104,7 +100,6 @@ def sample_view(mock_app: MagicMock, mock_session_state: dict) -> SampleView:
 
     return SampleView(app=mock_app, key='test_view')
 
-
 # *** tests: view_context lifecycle
 
 # ** test: init_state_called_once
@@ -120,7 +115,6 @@ def test_init_state_called_once(sample_view: SampleView, mock_session_state: dic
 
     # Assert init_state was called.
     assert sample_view.session.get('init_called') is True
-
 
 # ** test: init_state_not_called_again
 def test_init_state_not_called_again(mock_app: MagicMock, mock_session_state: dict) -> None:
@@ -143,7 +137,6 @@ def test_init_state_not_called_again(mock_app: MagicMock, mock_session_state: di
     # Second construction with same key should skip init_state.
     view2 = SampleView(app=mock_app, key='shared_key')
     assert view2.session.get('init_called') is False
-
 
 # ** test: default_init_state_is_noop
 def test_default_init_state_is_noop(mock_app: MagicMock, mock_session_state: dict) -> None:
@@ -169,7 +162,6 @@ def test_default_init_state_is_noop(mock_app: MagicMock, mock_session_state: dic
     # Assert no other keys exist in this namespace.
     ns_keys = [k for k in mock_session_state.keys() if k.startswith('plain_key.')]
     assert len(ns_keys) == 1
-
 
 # *** tests: view_context dispatch
 
@@ -197,7 +189,6 @@ def test_dispatch_calls_app_run(sample_view: SampleView, mock_app: MagicMock) ->
         data={'a': 1, 'b': 2},
     )
 
-
 # ** test: dispatch_with_headers
 def test_dispatch_with_headers(sample_view: SampleView, mock_app: MagicMock) -> None:
     '''
@@ -218,7 +209,6 @@ def test_dispatch_with_headers(sample_view: SampleView, mock_app: MagicMock) -> 
         headers={'lang': 'en_US'},
         data={'x': 10},
     )
-
 
 # ** test: dispatch_logs_success
 def test_dispatch_logs_success(sample_view: SampleView, mock_app: MagicMock) -> None:
@@ -255,7 +245,6 @@ def test_dispatch_logs_success(sample_view: SampleView, mock_app: MagicMock) -> 
     assert records[0].outcome == 'success'
     assert records[0].result == 'mock_result'
 
-
 # ** test: dispatch_logs_error_and_reraises
 def test_dispatch_logs_error_and_reraises(sample_view: SampleView, mock_app: MagicMock) -> None:
     '''
@@ -283,7 +272,6 @@ def test_dispatch_logs_error_and_reraises(sample_view: SampleView, mock_app: Mag
     assert records[0].outcome == 'error'
     assert records[0].result == 'boom'
 
-
 # ** test: audit_log_empty_before_dispatch
 def test_audit_log_empty_before_dispatch(sample_view: SampleView) -> None:
     '''
@@ -295,7 +283,6 @@ def test_audit_log_empty_before_dispatch(sample_view: SampleView) -> None:
 
     # Assert no records exist yet.
     assert sample_view.audit_log == []
-
 
 # ** test: audit_log_is_namespaced
 def test_audit_log_is_namespaced(mock_app: MagicMock, mock_session_state: dict) -> None:
@@ -330,7 +317,6 @@ def test_audit_log_is_namespaced(mock_app: MagicMock, mock_session_state: dict) 
     assert mock_session_state['left_view._audit_log'][0]['feature_id'] == 'calc.add'
     assert mock_session_state['right_view._audit_log'][0]['feature_id'] == 'calc.sub'
 
-
 # *** tests: view_context render
 
 # ** test: render_raises_not_implemented
@@ -354,7 +340,6 @@ def test_render_raises_not_implemented(mock_app: MagicMock, mock_session_state: 
     with pytest.raises(NotImplementedError):
         view.render()
 
-
 # ** test: callable_delegates_to_render
 def test_callable_delegates_to_render(sample_view: SampleView) -> None:
     '''
@@ -369,7 +354,6 @@ def test_callable_delegates_to_render(sample_view: SampleView) -> None:
 
     # Assert it delegated to render.
     assert result == 'rendered'
-
 
 # ** test: multiple_renders_accumulate
 def test_multiple_renders_accumulate(mock_app: MagicMock, mock_session_state: dict) -> None:
@@ -390,7 +374,6 @@ def test_multiple_renders_accumulate(mock_app: MagicMock, mock_session_state: di
     assert view.render() == 2
     assert view.render() == 3
 
-
 # *** tests: view_context session
 
 # ** test: session_namespace_matches_key
@@ -404,7 +387,6 @@ def test_session_namespace_matches_key(sample_view: SampleView) -> None:
 
     # Assert the session namespace matches the view key.
     assert sample_view.session.namespace == sample_view.key
-
 
 # ** test: custom_session_is_used
 def test_custom_session_is_used(mock_app: MagicMock, mock_session_state: dict) -> None:
@@ -427,7 +409,6 @@ def test_custom_session_is_used(mock_app: MagicMock, mock_session_state: dict) -
     assert view.session is custom_session
     assert view.session.namespace == 'custom_ns'
 
-
 # *** tests: view_component
 
 # ** test: component_render
@@ -446,7 +427,6 @@ def test_component_render(sample_view: SampleView) -> None:
     # Assert the props are returned.
     assert result == {'title': 'Hello', 'count': 5}
 
-
 # ** test: component_callable
 def test_component_callable(sample_view: SampleView) -> None:
     '''
@@ -463,7 +443,6 @@ def test_component_callable(sample_view: SampleView) -> None:
     # Assert it delegated to render.
     assert result == {'name': 'world'}
 
-
 # ** test: component_default_props
 def test_component_default_props(sample_view: SampleView) -> None:
     '''
@@ -479,7 +458,6 @@ def test_component_default_props(sample_view: SampleView) -> None:
 
     # Assert empty props are returned.
     assert result == {}
-
 
 # ** test: component_accesses_parent_dispatch
 def test_component_accesses_parent_dispatch(sample_view: SampleView, mock_app: MagicMock) -> None:
@@ -498,7 +476,6 @@ def test_component_accesses_parent_dispatch(sample_view: SampleView, mock_app: M
 
     # Assert the dispatch worked.
     assert result == 'mock_result'
-
 
 # ** test: component_raises_not_implemented
 def test_component_raises_not_implemented(sample_view: SampleView) -> None:

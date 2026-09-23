@@ -199,7 +199,6 @@ class ViewContext(object):
         # Delegate to render.
         return self.render()
 
-
 # ** context: view_component
 class ViewComponent(object):
     '''
