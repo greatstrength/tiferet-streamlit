@@ -6,11 +6,13 @@
 import pytest
 
 # ** app
+from tiferet_streamlit.assets import INCOMPATIBLE_APP_CONTEXT_ID as EXPORTED_INCOMPATIBLE_APP_CONTEXT_ID
 from tiferet_streamlit.assets.constants import (
     VIEW_NOT_INITIALIZED_ID,
     PAGE_NOT_FOUND_ID,
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
+    INCOMPATIBLE_APP_CONTEXT_ID,
     SESSION_KEY_PREFIX,
 )
 
@@ -22,6 +24,7 @@ from tiferet_streamlit.assets.constants import (
     PAGE_NOT_FOUND_ID,
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
+    INCOMPATIBLE_APP_CONTEXT_ID,
     SESSION_KEY_PREFIX,
 ])
 def test_all_constants_are_non_empty_strings(constant: str) -> None:
@@ -45,6 +48,7 @@ def test_all_constants_are_non_empty_strings(constant: str) -> None:
     PAGE_NOT_FOUND_ID,
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
+    INCOMPATIBLE_APP_CONTEXT_ID,
 ])
 def test_constants_are_uppercase(constant: str) -> None:
     '''
@@ -61,7 +65,7 @@ def test_constants_are_uppercase(constant: str) -> None:
 # ** test: constants_are_distinct
 def test_constants_are_distinct() -> None:
     '''
-    Test that all four error code constants have unique values.
+    Test that all error code constants have unique values.
     '''
 
     # Collect all error code constants.
@@ -70,7 +74,21 @@ def test_constants_are_distinct() -> None:
         PAGE_NOT_FOUND_ID,
         VIEW_RENDER_FAILED_ID,
         INVALID_VIEW_TYPE_ID,
+        INCOMPATIBLE_APP_CONTEXT_ID,
     ]
 
     # Assert all values are distinct.
     assert len(error_codes) == len(set(error_codes))
+
+
+# ** test: incompatible_app_context_id
+def test_incompatible_app_context_id() -> None:
+    '''
+    Verify the incompatible app context error id value and assets export.
+    '''
+
+    # Assert the constant value.
+    assert INCOMPATIBLE_APP_CONTEXT_ID == 'INCOMPATIBLE_APP_CONTEXT'
+
+    # Assert the assets package exports the same constant.
+    assert EXPORTED_INCOMPATIBLE_APP_CONTEXT_ID == INCOMPATIBLE_APP_CONTEXT_ID

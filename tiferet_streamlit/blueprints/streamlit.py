@@ -3,21 +3,56 @@
 # *** imports
 
 # ** core
-from typing import Dict, List, Type
+import inspect
+from typing import Any, Dict, List, Type
 
 # ** infra
-from tiferet.blueprints.main import (
-    resolve_interface,
-    realize_interface,
-)
-from tiferet.events.static import RaiseError
+from tiferet import TiferetError
+from tiferet.blueprints.app import build_app
 
 # ** app
-from ..assets.constants import PAGE_NOT_FOUND_ID
+from ..assets.constants import (
+    INCOMPATIBLE_APP_CONTEXT_ID,
+    PAGE_NOT_FOUND_ID,
+)
 from ..contexts.session import SessionCacheContext
 from ..contexts.view import ViewContext
 from ..contexts.page import PageContext
 from ..domain.view import Page
+
+# *** functions
+
+# ** function: is_app_context_compatible
+def is_app_context_compatible(app: Any) -> bool:
+    '''
+    Check whether an app exposes a run(feature_id, headers, data)-shaped callable.
+
+    :param app: The object returned by build_app.
+    :type app: Any
+    :return: True when run accepts that call shape, otherwise False.
+    :rtype: bool
+    '''
+
+    # Resolve the run method.
+    run_method = getattr(app, 'run', None)
+
+    # Reject a missing or non-callable run.
+    if not callable(run_method):
+        return False
+
+    # Bind the required call shape.
+    try:
+        inspect.signature(run_method).bind(
+            'feature_id',
+            headers={},
+            data={},
+        )
+    except (TypeError, ValueError):
+        return False
+
+    # Accept a matching call shape.
+    return True
+
 
 # *** blueprints
 
@@ -130,8 +165,8 @@ def build_streamlit_app(
         **parameters,
     ):
     '''
-    Primary entry point. Resolves and realizes the Tiferet interface,
-    builds pages, and runs the Streamlit application.
+    Primary entry point. Builds the Tiferet app, builds pages,
+    and runs the Streamlit application.
 
     :param interface_id: The Tiferet interface ID to load.
     :type interface_id: str
@@ -139,15 +174,20 @@ def build_streamlit_app(
     :type pages: Dict[str, Type[ViewContext]]
     :param page_configs: Optional list of Page domain objects. Takes precedence over pages.
     :type page_configs: List[Page]
-    :param parameters: Additional keyword arguments passed to resolve_interface.
+    :param parameters: Additional keyword arguments passed to build_app.
     :type parameters: dict
     '''
 
-    # Resolve the interface definition.
-    app_interface, _ = resolve_interface(interface_id, **parameters)
+    # Build the app from the interface identifier.
+    app = build_app(interface_id, **parameters)
 
-    # Realize the app interface context.
-    app = realize_interface(app_interface, interface_id)
+    # Reject an app that cannot accept run(feature_id, headers, data).
+    if not is_app_context_compatible(app):
+        TiferetError.raise_error(
+            INCOMPATIBLE_APP_CONTEXT_ID,
+            message=f'The app built for interface "{interface_id}" does not expose a run(feature_id, headers, data)-shaped callable; the installed tiferet version may be incompatible with tiferet-streamlit.',
+            interface_id=interface_id,
+        )
 
     # Build pages from config if provided (takes precedence).
     if page_configs is not None:
@@ -159,9 +199,7 @@ def build_streamlit_app(
 
     # Raise error if no pages provided.
     else:
-        RaiseError.execute(
-            error_code=PAGE_NOT_FOUND_ID,
-        )
+        TiferetError.raise_error(PAGE_NOT_FOUND_ID)
 
     # Run the page context.
     page_ctx.run()

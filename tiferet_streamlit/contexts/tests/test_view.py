@@ -5,6 +5,7 @@
 # ** infra
 import pytest
 from unittest.mock import MagicMock
+from tiferet.contexts.app import AppSessionContext
 
 # ** app
 from tiferet_streamlit.contexts.session import SessionCacheContext
@@ -74,14 +75,14 @@ class SampleComponent(ViewComponent):
 @pytest.fixture
 def mock_app() -> MagicMock:
     '''
-    MagicMock with run returning 'mock_result'.
+    AppSessionContext double exposing run.
 
-    :return: A mocked AppInterfaceContext.
+    :return: A mocked AppSessionContext whose run returns 'mock_result'.
     :rtype: MagicMock
     '''
 
-    # Create a mock app context.
-    app = MagicMock()
+    # Create an app-session double that exposes run.
+    app = MagicMock(spec=AppSessionContext)
     app.run.return_value = 'mock_result'
     return app
 

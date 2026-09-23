@@ -6,7 +6,7 @@
 from typing import Any, Dict
 
 # ** infra
-from tiferet.contexts.app import AppInterfaceContext
+from tiferet.contexts.app import AppSessionContext
 
 # ** app
 from .session import SessionCacheContext
@@ -18,12 +18,12 @@ class ViewContext(object):
     '''
     The code-behind for a Streamlit page. Manages state via
     SessionCacheContext, dispatches Tiferet features via
-    AppInterfaceContext, and defines Streamlit widgets through
+    AppSessionContext, and defines Streamlit widgets through
     an overridable render() method.
     '''
 
     # * attribute: app
-    app: AppInterfaceContext
+    app: AppSessionContext
 
     # * attribute: key
     key: str
@@ -33,15 +33,15 @@ class ViewContext(object):
 
     # * init
     def __init__(self,
-            app: AppInterfaceContext,
+            app: AppSessionContext,
             key: str,
             session: SessionCacheContext = None,
         ):
         '''
         Initialize the view context.
 
-        :param app: Tiferet interface context for feature dispatch.
-        :type app: AppInterfaceContext
+        :param app: Tiferet app session context for feature dispatch.
+        :type app: AppSessionContext
         :param key: Unique identifier for this view instance.
         :type key: str
         :param session: Optional session cache. Auto-created with namespace=key if not provided.
