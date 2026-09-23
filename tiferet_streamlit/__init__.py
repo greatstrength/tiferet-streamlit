@@ -2,10 +2,10 @@
 
 # *** exports
 
-try:
-    # ** export: domain
-    from .domain import Page
+# ** export: domain
+from .domain import Page, Theme
 
+try:
     # ** export: interfaces
     from .interfaces import ViewService
 

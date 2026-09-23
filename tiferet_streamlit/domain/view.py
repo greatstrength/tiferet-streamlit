@@ -9,7 +9,7 @@ import importlib
 from pydantic import Field
 
 # ** app
-from tiferet.domain.settings import DomainObject
+from tiferet.domain.core import DomainObject
 
 # *** models
 
