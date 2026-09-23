@@ -57,7 +57,6 @@ def is_app_context_compatible(app: Any) -> bool:
     # Accept a matching call shape.
     return True
 
-
 # *** blueprints
 
 # ** blueprint: create_view
@@ -87,7 +86,6 @@ def create_view(
 
     # Instantiate and return the view.
     return view_cls(app=app, key=key, session=session)
-
 
 # ** blueprint: build_pages
 def build_pages(
@@ -119,7 +117,6 @@ def build_pages(
 
     # Return the page context.
     return page_ctx
-
 
 # ** blueprint: build_pages_from_config
 def build_pages_from_config(
@@ -159,7 +156,6 @@ def build_pages_from_config(
 
     # Return the page context.
     return page_ctx
-
 
 # ** blueprint: apply_theme_config
 def apply_theme_config(
@@ -203,7 +199,6 @@ def apply_theme_config(
     with path.open('w', encoding='utf-8') as config_file:
         toml.dump(document, config_file)
 
-
 # ** blueprint: inject_theme_css
 def inject_theme_css(theme: Theme) -> None:
     '''
@@ -224,7 +219,6 @@ def inject_theme_css(theme: Theme) -> None:
         f'<style>{theme.custom_css}</style>',
         unsafe_allow_html=True,
     )
-
 
 # ** blueprint: build_streamlit_app
 def build_streamlit_app(
@@ -280,7 +274,6 @@ def build_streamlit_app(
 
     # Run the page context.
     page_ctx.run()
-
 
 # ** blueprint: run
 def run(

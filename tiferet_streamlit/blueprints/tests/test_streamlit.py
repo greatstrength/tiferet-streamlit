@@ -45,7 +45,6 @@ class StubView(ViewContext):
         '''Render stub.'''
         return 'stub'
 
-
 # *** fixtures
 
 # ** fixture: mock_session_state
@@ -62,7 +61,6 @@ def mock_session_state():
     with patch('streamlit.session_state', state):
         yield state
 
-
 # ** fixture: mock_app_interface
 @pytest.fixture
 def mock_app_interface() -> MagicMock:
@@ -75,7 +73,6 @@ def mock_app_interface() -> MagicMock:
 
     # Create an app-session double that exposes run.
     return MagicMock(spec=AppSessionContext)
-
 
 # *** tests: create_view
 
@@ -96,7 +93,6 @@ def test_create_view_returns_instance(mock_app_interface: MagicMock) -> None:
     assert view.app is mock_app_interface
     assert view.key == 'test'
 
-
 # ** test: create_view_auto_namespace
 def test_create_view_auto_namespace(mock_app_interface: MagicMock) -> None:
     '''
@@ -111,7 +107,6 @@ def test_create_view_auto_namespace(mock_app_interface: MagicMock) -> None:
 
     # Assert the session namespace matches the key.
     assert view.session.namespace == 'ns_test'
-
 
 # ** test: create_view_custom_session
 def test_create_view_custom_session(mock_app_interface: MagicMock) -> None:
@@ -130,7 +125,6 @@ def test_create_view_custom_session(mock_app_interface: MagicMock) -> None:
 
     # Assert the custom session is used.
     assert view.session is custom_session
-
 
 # *** tests: build_pages
 
@@ -155,7 +149,6 @@ def test_build_pages_returns_page_context(mock_app_interface: MagicMock) -> None
     assert '/home' in page_ctx.pages
     assert '/about' in page_ctx.pages
 
-
 # ** test: build_pages_view_keys_match_routes
 def test_build_pages_view_keys_match_routes(mock_app_interface: MagicMock) -> None:
     '''
@@ -171,7 +164,6 @@ def test_build_pages_view_keys_match_routes(mock_app_interface: MagicMock) -> No
     # Assert the view key matches the route.
     view = page_ctx.pages['/home']['view']
     assert view.key == '/home'
-
 
 # *** tests: build_pages_from_config
 
@@ -201,7 +193,6 @@ def test_build_pages_from_config_returns_page_context(mock_app_interface: MagicM
     assert '/home' in page_ctx.pages
     assert page_ctx.pages['/home']['title'] == 'Home'
     assert page_ctx.pages['/home']['icon'] == '🏠'
-
 
 # *** tests: build_streamlit_app
 
@@ -237,7 +228,6 @@ def test_build_streamlit_app_with_pages(
 
     # Assert navigation ran.
     mock_nav.run.assert_called_once()
-
 
 # ** test: build_streamlit_app_with_page_configs
 @patch('tiferet_streamlit.contexts.page.st')
@@ -276,7 +266,6 @@ def test_build_streamlit_app_with_page_configs(
     # Assert navigation ran.
     mock_nav.run.assert_called_once()
 
-
 # ** test: build_streamlit_app_no_pages_raises_error
 @patch('tiferet_streamlit.blueprints.streamlit.build_app')
 def test_build_streamlit_app_no_pages_raises_error(
@@ -297,7 +286,6 @@ def test_build_streamlit_app_no_pages_raises_error(
         build_streamlit_app('test_interface')
 
     assert exc_info.value.error_code == PAGE_NOT_FOUND_ID
-
 
 # ** test: build_streamlit_app_page_configs_take_precedence
 @patch('tiferet_streamlit.contexts.page.st')
@@ -344,7 +332,6 @@ def test_build_streamlit_app_page_configs_take_precedence(
     assert call_kwargs['url_path'] == '/config'
     assert call_kwargs['title'] == 'Config Page'
 
-
 # ** test: build_streamlit_app_raises_on_incompatible_app_context
 @patch('tiferet_streamlit.blueprints.streamlit.build_pages_from_config')
 @patch('tiferet_streamlit.blueprints.streamlit.build_pages')
@@ -378,7 +365,6 @@ def test_build_streamlit_app_raises_on_incompatible_app_context(
     mock_build_pages.assert_not_called()
     mock_build_pages_from_config.assert_not_called()
 
-
 # *** tests: is_app_context_compatible
 
 # ** test: is_app_context_compatible_accepts_matching_run
@@ -395,7 +381,6 @@ def test_is_app_context_compatible_accepts_matching_run() -> None:
     # Assert the call shape is accepted.
     assert is_app_context_compatible(CompatibleApp()) is True
 
-
 # ** test: is_app_context_compatible_rejects_missing_run
 def test_is_app_context_compatible_rejects_missing_run() -> None:
     '''
@@ -404,7 +389,6 @@ def test_is_app_context_compatible_rejects_missing_run() -> None:
 
     # Assert a bare object is rejected.
     assert is_app_context_compatible(object()) is False
-
 
 # ** test: is_app_context_compatible_rejects_wrong_shaped_run
 def test_is_app_context_compatible_rejects_wrong_shaped_run() -> None:
