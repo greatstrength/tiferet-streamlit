@@ -67,6 +67,31 @@ class SampleComponent(ViewComponent):
         '''Render the component with props.'''
         return props
 
+# ** helper: recording_widget
+def recording_widget(calls, result):
+    '''
+    Build a widget callable that records kwargs and returns a scripted value.
+
+    :param calls: List that receives each kwargs dict.
+    :type calls: list
+    :param result: Value the widget returns.
+    :type result: Any
+    :return: A widget callable.
+    :rtype: Callable
+    '''
+
+    def widget(**kwargs):
+        '''Record kwargs and return the scripted value.'''
+
+        # Record the forwarded keyword arguments.
+        calls.append(kwargs)
+
+        # Return the scripted widget value.
+        return result
+
+    # Return the fake widget.
+    return widget
+
 # *** fixtures
 
 # ** fixture: mock_app
@@ -492,3 +517,249 @@ def test_component_raises_not_implemented(sample_view: SampleView) -> None:
     # Assert render raises NotImplementedError.
     with pytest.raises(NotImplementedError):
         comp.render()
+
+# *** tests: widget binding
+
+# ** test: bind_widget_seeds_default_and_writes_back
+def test_bind_widget_seeds_default_and_writes_back(sample_view: SampleView) -> None:
+    '''
+    Verify a missing key uses default as the widget value and stores the result.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Confirm the key is missing.
+    assert sample_view.session.get('name') is None
+
+    # Bind a widget that records kwargs and returns a scripted value.
+    calls = []
+    result = sample_view.bind_widget(
+        'name',
+        recording_widget(calls, 'Ada'),
+        default='',
+        label='Name',
+    )
+
+    # Assert the default was passed as value and the result was stored.
+    assert calls == [{'label': 'Name', 'value': ''}]
+    assert result == 'Ada'
+    assert sample_view.session.get('name') == 'Ada'
+
+# ** test: bind_widget_keeps_false_and_zero
+def test_bind_widget_keeps_false_and_zero(sample_view: SampleView) -> None:
+    '''
+    Verify stored False and 0 are passed through, not replaced by default.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Store falsy values that must not fall back to default.
+    sample_view.session.set('flag', False)
+    sample_view.session.set('count', 0)
+
+    # Bind widgets that would replace those values if the default were used.
+    flag_calls = []
+    count_calls = []
+    flag = sample_view.bind_widget(
+        'flag',
+        recording_widget(flag_calls, False),
+        default=True,
+    )
+    count = sample_view.bind_widget(
+        'count',
+        recording_widget(count_calls, 0),
+        default=1,
+    )
+
+    # Assert the stored falsy values were passed through and kept.
+    assert flag_calls == [{'value': False}]
+    assert count_calls == [{'value': 0}]
+    assert flag is False
+    assert count == 0
+    assert sample_view.session.get('flag') is False
+    assert sample_view.session.get('count') == 0
+
+# ** test: bind_widget_dispatch_skips_when_unchanged
+def test_bind_widget_dispatch_skips_when_unchanged(sample_view: SampleView) -> None:
+    '''
+    Verify an equal before and after value does not call dispatch.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Store the value the widget will return.
+    sample_view.session.set('amount', 3)
+    sample_view.dispatch = MagicMock()
+
+    # Bind a widget that returns the same value.
+    calls = []
+    result = sample_view.bind_widget_dispatch(
+        'amount',
+        recording_widget(calls, 3),
+        'calc.update',
+        default=0,
+    )
+
+    # Assert the stored value was passed through and dispatch was skipped.
+    assert calls == [{'value': 3}]
+    assert result == 3
+    assert sample_view.session.get('amount') == 3
+    sample_view.dispatch.assert_not_called()
+
+# ** test: bind_widget_dispatch_sends_key_payload
+def test_bind_widget_dispatch_sends_key_payload(sample_view: SampleView) -> None:
+    '''
+    Verify a change with no dispatch_data calls dispatch with the key payload.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Store a value that the widget will change.
+    sample_view.session.set('amount', 1)
+    sample_view.dispatch = MagicMock()
+
+    # Bind a widget that returns a new value and supplies no dispatch_data.
+    result = sample_view.bind_widget_dispatch(
+        'amount',
+        recording_widget([], 5),
+        'calc.update',
+    )
+
+    # Assert the new value was stored and dispatched as the key payload.
+    assert result == 5
+    assert sample_view.session.get('amount') == 5
+    sample_view.dispatch.assert_called_once_with('calc.update', amount=5)
+
+# ** test: bind_widget_dispatch_uses_dispatch_data
+def test_bind_widget_dispatch_uses_dispatch_data(sample_view: SampleView) -> None:
+    '''
+    Verify dispatch_data(new_value) supplies the dispatch keyword arguments.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Store a value that the widget will change.
+    sample_view.session.set('amount', 1)
+    sample_view.dispatch = MagicMock()
+
+    # Map the new value to an explicit payload.
+    def to_payload(value):
+        '''Return keyword arguments for the new value.'''
+        return {'total': value, 'unit': 'kg'}
+
+    # Bind a widget that returns a new value.
+    result = sample_view.bind_widget_dispatch(
+        'amount',
+        recording_widget([], 5),
+        'calc.update',
+        dispatch_data=to_payload,
+    )
+
+    # Assert the mapper supplied the keyword arguments.
+    assert result == 5
+    sample_view.dispatch.assert_called_once_with(
+        'calc.update',
+        total=5,
+        unit='kg',
+    )
+
+# ** test: bind_trigger_dispatches_only_when_truthy
+def test_bind_trigger_dispatches_only_when_truthy(
+        sample_view: SampleView,
+        mock_session_state: dict,
+    ) -> None:
+    '''
+    Verify a falsy widget does not dispatch and a truthy widget does.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Replace dispatch and snapshot session state before either call.
+    sample_view.dispatch = MagicMock()
+    before = dict(mock_session_state)
+
+    # Bind a falsy widget with no dispatch_data.
+    falsy = sample_view.bind_trigger(
+        recording_widget([], False),
+        'data.load',
+        label='Load',
+    )
+
+    # Assert the falsy result did not dispatch or touch session state.
+    assert falsy is False
+    sample_view.dispatch.assert_not_called()
+    assert mock_session_state == before
+
+    # Bind a truthy widget with no dispatch_data.
+    truthy = sample_view.bind_trigger(
+        recording_widget([], True),
+        'data.load',
+        label='Load',
+    )
+
+    # Assert the truthy result dispatched with no extra keywords.
+    assert truthy is True
+    sample_view.dispatch.assert_called_once_with('data.load')
+    assert mock_session_state == before
+
+# ** test: view_component_bind_uses_parent_session_and_dispatch
+def test_view_component_bind_uses_parent_session_and_dispatch(
+        sample_view: SampleView,
+        mock_session_state: dict,
+    ) -> None:
+    '''
+    Verify a component call writes the parent session and calls parent dispatch.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Replace parent dispatch so the component call can be asserted.
+    sample_view.dispatch = MagicMock()
+    comp = SampleComponent(ctx=sample_view)
+
+    # Bind a changed value through the component.
+    calls = []
+    result = comp.bind_widget_dispatch(
+        'choice',
+        recording_widget(calls, 'new'),
+        'feat.pick',
+        default='old',
+    )
+
+    # Assert the parent session was read and written, and parent dispatch ran.
+    assert calls == [{'value': 'old'}]
+    assert result == 'new'
+    assert sample_view.session.get('choice') == 'new'
+    sample_view.dispatch.assert_called_once_with('feat.pick', choice='new')
+
+    # Value sync also writes the parent session.
+    label = comp.bind_widget(
+        'label',
+        recording_widget([], 'kept'),
+        default='x',
+    )
+    assert label == 'kept'
+    assert sample_view.session.get('label') == 'kept'
+
+    # A truthy trigger calls the parent dispatch without writing session state.
+    before = dict(mock_session_state)
+    triggered = comp.bind_trigger(
+        recording_widget([], True),
+        'feat.go',
+    )
+
+    # Assert the parent dispatch ran and session state was unchanged.
+    assert triggered is True
+    sample_view.dispatch.assert_any_call('feat.go')
+    assert mock_session_state == before
