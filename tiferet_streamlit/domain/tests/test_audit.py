@@ -26,7 +26,6 @@ def test_dispatch_audit_record_requires_feature_id_and_outcome() -> None:
     with pytest.raises(ValidationError):
         DispatchAuditRecord(feature_id='group.feature')
 
-
 # ** test: dispatch_audit_record_rejects_unknown_outcome
 def test_dispatch_audit_record_rejects_unknown_outcome() -> None:
     '''
@@ -39,7 +38,6 @@ def test_dispatch_audit_record_rejects_unknown_outcome() -> None:
             feature_id='group.feature',
             outcome='failed',
         )
-
 
 # ** test: dispatch_audit_record_defaults_arguments_and_result
 def test_dispatch_audit_record_defaults_arguments_and_result() -> None:
@@ -59,7 +57,6 @@ def test_dispatch_audit_record_defaults_arguments_and_result() -> None:
 
     # Assert the model is the public export.
     assert PackageDispatchAuditRecord is DispatchAuditRecord
-
 
 # ** test: dispatch_audit_record_round_trip
 def test_dispatch_audit_record_round_trip() -> None:
