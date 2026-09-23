@@ -9,7 +9,8 @@ import importlib
 from pydantic import Field
 
 # ** app
-from tiferet.domain.core import DomainObject
+from tiferet.domain.core import DomainObject, ModelError
+from ..assets.constants import INVALID_VIEW_TYPE_ID
 
 # *** models
 
@@ -63,12 +64,23 @@ class Page(DomainObject):
 
         :return: The ViewContext subclass identified by view_module_path and view_class_name.
         :rtype: type
-        :raises ModuleNotFoundError: If the module cannot be imported.
-        :raises AttributeError: If the class does not exist in the module.
+        :raises ModelError: If the module cannot be imported or the class is missing.
         '''
 
-        # Import the module from the dotted path.
-        module = importlib.import_module(self.view_module_path)
+        # Import the module from the dotted path and resolve the class.
+        try:
+            module = importlib.import_module(self.view_module_path)
+            view_type = getattr(module, self.view_class_name)
 
-        # Resolve and return the class from the module.
-        return getattr(module, self.view_class_name)
+        # Raise a model error for a missing module or class.
+        except (ModuleNotFoundError, AttributeError) as e:
+            ModelError.raise_error(
+                INVALID_VIEW_TYPE_ID,
+                model=self,
+                view_module_path=self.view_module_path,
+                view_class_name=self.view_class_name,
+                exception=str(e),
+            )
+
+        # Return the resolved class.
+        return view_type

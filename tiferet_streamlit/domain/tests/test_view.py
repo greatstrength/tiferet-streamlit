@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 # ** app
+from tiferet.domain.core import ModelError
 from tiferet_streamlit.domain.view import Page
 
 # *** fixtures
@@ -28,7 +29,6 @@ def sample_page_data() -> dict:
         view_class_name='Page',
     )
 
-
 # ** fixture: sample_page
 @pytest.fixture
 def sample_page(sample_page_data: dict) -> Page:
@@ -42,7 +42,6 @@ def sample_page(sample_page_data: dict) -> Page:
     '''
 
     return Page(**sample_page_data)
-
 
 # *** tests
 
@@ -63,7 +62,6 @@ def test_page_required_fields(sample_page: Page, sample_page_data: dict) -> None
     assert sample_page.view_module_path == sample_page_data['view_module_path']
     assert sample_page.view_class_name == sample_page_data['view_class_name']
 
-
 # ** test: page_default_layout
 def test_page_default_layout(sample_page: Page) -> None:
     '''
@@ -76,7 +74,6 @@ def test_page_default_layout(sample_page: Page) -> None:
     # Assert the default layout value.
     assert sample_page.layout == 'centered'
 
-
 # ** test: page_default_icon_none
 def test_page_default_icon_none(sample_page: Page) -> None:
     '''
@@ -88,7 +85,6 @@ def test_page_default_icon_none(sample_page: Page) -> None:
 
     # Assert the default icon value.
     assert sample_page.icon is None
-
 
 # ** test: page_custom_layout
 def test_page_custom_layout(sample_page_data: dict) -> None:
@@ -105,7 +101,6 @@ def test_page_custom_layout(sample_page_data: dict) -> None:
     # Assert the custom layout value.
     assert page.layout == 'wide'
 
-
 # ** test: page_custom_icon
 def test_page_custom_icon(sample_page_data: dict) -> None:
     '''
@@ -120,7 +115,6 @@ def test_page_custom_icon(sample_page_data: dict) -> None:
 
     # Assert the custom icon value.
     assert page.icon == '🏠'
-
 
 # ** test: page_get_view_type
 def test_page_get_view_type(sample_page: Page) -> None:
@@ -137,11 +131,10 @@ def test_page_get_view_type(sample_page: Page) -> None:
     # Assert it returns the expected class.
     assert view_type is Page
 
-
 # ** test: page_get_view_type_invalid_module
 def test_page_get_view_type_invalid_module(sample_page_data: dict) -> None:
     '''
-    Verify ModuleNotFoundError for a bad module path.
+    Verify a bad module path raises INVALID_VIEW_TYPE.
 
     :param sample_page_data: The sample page data dictionary.
     :type sample_page_data: dict
@@ -150,15 +143,16 @@ def test_page_get_view_type_invalid_module(sample_page_data: dict) -> None:
     # Create a page with an invalid module path.
     page = Page(**{**sample_page_data, 'view_module_path': 'nonexistent.module'})
 
-    # Assert ModuleNotFoundError is raised.
-    with pytest.raises(ModuleNotFoundError):
+    # Assert the structured invalid-view-type error is raised.
+    with pytest.raises(ModelError) as exc_info:
         page.get_view_type()
 
+    assert exc_info.value.error_code == 'INVALID_VIEW_TYPE'
 
 # ** test: page_get_view_type_invalid_class
 def test_page_get_view_type_invalid_class(sample_page_data: dict) -> None:
     '''
-    Verify AttributeError for a bad class name.
+    Verify a bad class name raises INVALID_VIEW_TYPE.
 
     :param sample_page_data: The sample page data dictionary.
     :type sample_page_data: dict
@@ -167,10 +161,71 @@ def test_page_get_view_type_invalid_class(sample_page_data: dict) -> None:
     # Create a page with an invalid class name.
     page = Page(**{**sample_page_data, 'view_class_name': 'NonexistentClass'})
 
-    # Assert AttributeError is raised.
-    with pytest.raises(AttributeError):
+    # Assert the structured invalid-view-type error is raised.
+    with pytest.raises(ModelError) as exc_info:
         page.get_view_type()
 
+    assert exc_info.value.error_code == 'INVALID_VIEW_TYPE'
+
+# ** test: get_view_type_missing_module_raises_invalid_view_type
+def test_get_view_type_missing_module_raises_invalid_view_type(sample_page_data: dict) -> None:
+    '''
+    Verify a missing module raises INVALID_VIEW_TYPE with the attempted path.
+
+    :param sample_page_data: The sample page data dictionary.
+    :type sample_page_data: dict
+    '''
+
+    # Point the page at a module that does not exist.
+    missing_module = 'nonexistent.module.path'
+    page = Page(**{**sample_page_data, 'view_module_path': missing_module})
+
+    # Assert the structured error carries the attempted path and class.
+    with pytest.raises(ModelError) as exc_info:
+        page.get_view_type()
+
+    assert exc_info.value.error_code == 'INVALID_VIEW_TYPE'
+    assert exc_info.value.kwargs['view_module_path'] == missing_module
+    assert exc_info.value.kwargs['view_class_name'] == sample_page_data['view_class_name']
+    assert exc_info.value.kwargs['exception']
+
+# ** test: get_view_type_missing_class_raises_invalid_view_type
+def test_get_view_type_missing_class_raises_invalid_view_type(sample_page_data: dict) -> None:
+    '''
+    Verify a missing class raises INVALID_VIEW_TYPE, not AttributeError.
+
+    :param sample_page_data: The sample page data dictionary.
+    :type sample_page_data: dict
+    '''
+
+    # Point the page at a real module and a missing class.
+    missing_class = 'MissingViewClass'
+    page = Page(**{**sample_page_data, 'view_class_name': missing_class})
+
+    # Assert the structured error is raised instead of AttributeError.
+    with pytest.raises(ModelError) as exc_info:
+        page.get_view_type()
+
+    assert not isinstance(exc_info.value, AttributeError)
+    assert exc_info.value.error_code == 'INVALID_VIEW_TYPE'
+    assert exc_info.value.kwargs['view_module_path'] == sample_page_data['view_module_path']
+    assert exc_info.value.kwargs['view_class_name'] == missing_class
+    assert exc_info.value.kwargs['exception']
+
+# ** test: get_view_type_returns_class
+def test_get_view_type_returns_class(sample_page: Page) -> None:
+    '''
+    Verify a known importable class is returned unchanged.
+
+    :param sample_page: The sample Page instance.
+    :type sample_page: Page
+    '''
+
+    # Resolve the view type.
+    view_type = sample_page.get_view_type()
+
+    # Assert the class is returned unchanged.
+    assert view_type is Page
 
 # ** test: page_rejects_extra_fields
 def test_page_rejects_extra_fields(sample_page_data: dict) -> None:
