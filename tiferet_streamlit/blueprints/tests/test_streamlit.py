@@ -2,8 +2,12 @@
 
 # *** imports
 
+# ** core
+from pathlib import Path
+
 # ** infra
 import pytest
+import toml
 from unittest.mock import MagicMock, patch
 from tiferet.contexts.app import AppSessionContext
 
@@ -16,6 +20,7 @@ from tiferet_streamlit.assets.constants import (
 from tiferet_streamlit.contexts.session import SessionCacheContext
 from tiferet_streamlit.contexts.view import ViewContext
 from tiferet_streamlit.contexts.page import PageContext
+from tiferet_streamlit.domain.theme import Theme
 from tiferet_streamlit.domain.view import Page
 from tiferet_streamlit.blueprints.streamlit import (
     create_view,
@@ -23,6 +28,8 @@ from tiferet_streamlit.blueprints.streamlit import (
     build_pages_from_config,
     build_streamlit_app,
     is_app_context_compatible,
+    apply_theme_config,
+    inject_theme_css,
 )
 
 # *** helpers
@@ -37,7 +44,6 @@ class StubView(ViewContext):
     def render(self):
         '''Render stub.'''
         return 'stub'
-
 
 # *** fixtures
 
@@ -55,7 +61,6 @@ def mock_session_state():
     with patch('streamlit.session_state', state):
         yield state
 
-
 # ** fixture: mock_app_interface
 @pytest.fixture
 def mock_app_interface() -> MagicMock:
@@ -68,7 +73,6 @@ def mock_app_interface() -> MagicMock:
 
     # Create an app-session double that exposes run.
     return MagicMock(spec=AppSessionContext)
-
 
 # *** tests: create_view
 
@@ -89,7 +93,6 @@ def test_create_view_returns_instance(mock_app_interface: MagicMock) -> None:
     assert view.app is mock_app_interface
     assert view.key == 'test'
 
-
 # ** test: create_view_auto_namespace
 def test_create_view_auto_namespace(mock_app_interface: MagicMock) -> None:
     '''
@@ -104,7 +107,6 @@ def test_create_view_auto_namespace(mock_app_interface: MagicMock) -> None:
 
     # Assert the session namespace matches the key.
     assert view.session.namespace == 'ns_test'
-
 
 # ** test: create_view_custom_session
 def test_create_view_custom_session(mock_app_interface: MagicMock) -> None:
@@ -123,7 +125,6 @@ def test_create_view_custom_session(mock_app_interface: MagicMock) -> None:
 
     # Assert the custom session is used.
     assert view.session is custom_session
-
 
 # *** tests: build_pages
 
@@ -148,7 +149,6 @@ def test_build_pages_returns_page_context(mock_app_interface: MagicMock) -> None
     assert '/home' in page_ctx.pages
     assert '/about' in page_ctx.pages
 
-
 # ** test: build_pages_view_keys_match_routes
 def test_build_pages_view_keys_match_routes(mock_app_interface: MagicMock) -> None:
     '''
@@ -164,7 +164,6 @@ def test_build_pages_view_keys_match_routes(mock_app_interface: MagicMock) -> No
     # Assert the view key matches the route.
     view = page_ctx.pages['/home']['view']
     assert view.key == '/home'
-
 
 # *** tests: build_pages_from_config
 
@@ -194,7 +193,6 @@ def test_build_pages_from_config_returns_page_context(mock_app_interface: MagicM
     assert '/home' in page_ctx.pages
     assert page_ctx.pages['/home']['title'] == 'Home'
     assert page_ctx.pages['/home']['icon'] == '🏠'
-
 
 # *** tests: build_streamlit_app
 
@@ -230,7 +228,6 @@ def test_build_streamlit_app_with_pages(
 
     # Assert navigation ran.
     mock_nav.run.assert_called_once()
-
 
 # ** test: build_streamlit_app_with_page_configs
 @patch('tiferet_streamlit.contexts.page.st')
@@ -269,7 +266,6 @@ def test_build_streamlit_app_with_page_configs(
     # Assert navigation ran.
     mock_nav.run.assert_called_once()
 
-
 # ** test: build_streamlit_app_no_pages_raises_error
 @patch('tiferet_streamlit.blueprints.streamlit.build_app')
 def test_build_streamlit_app_no_pages_raises_error(
@@ -290,7 +286,6 @@ def test_build_streamlit_app_no_pages_raises_error(
         build_streamlit_app('test_interface')
 
     assert exc_info.value.error_code == PAGE_NOT_FOUND_ID
-
 
 # ** test: build_streamlit_app_page_configs_take_precedence
 @patch('tiferet_streamlit.contexts.page.st')
@@ -337,7 +332,6 @@ def test_build_streamlit_app_page_configs_take_precedence(
     assert call_kwargs['url_path'] == '/config'
     assert call_kwargs['title'] == 'Config Page'
 
-
 # ** test: build_streamlit_app_raises_on_incompatible_app_context
 @patch('tiferet_streamlit.blueprints.streamlit.build_pages_from_config')
 @patch('tiferet_streamlit.blueprints.streamlit.build_pages')
@@ -371,7 +365,6 @@ def test_build_streamlit_app_raises_on_incompatible_app_context(
     mock_build_pages.assert_not_called()
     mock_build_pages_from_config.assert_not_called()
 
-
 # *** tests: is_app_context_compatible
 
 # ** test: is_app_context_compatible_accepts_matching_run
@@ -388,7 +381,6 @@ def test_is_app_context_compatible_accepts_matching_run() -> None:
     # Assert the call shape is accepted.
     assert is_app_context_compatible(CompatibleApp()) is True
 
-
 # ** test: is_app_context_compatible_rejects_missing_run
 def test_is_app_context_compatible_rejects_missing_run() -> None:
     '''
@@ -397,7 +389,6 @@ def test_is_app_context_compatible_rejects_missing_run() -> None:
 
     # Assert a bare object is rejected.
     assert is_app_context_compatible(object()) is False
-
 
 # ** test: is_app_context_compatible_rejects_wrong_shaped_run
 def test_is_app_context_compatible_rejects_wrong_shaped_run() -> None:
@@ -412,3 +403,233 @@ def test_is_app_context_compatible_rejects_wrong_shaped_run() -> None:
 
     # Assert the call shape is rejected.
     assert is_app_context_compatible(WrongShapedApp()) is False
+
+# *** tests: apply_theme_config
+
+# ** test: apply_theme_config_writes_native_fields
+def test_apply_theme_config_writes_native_fields(tmp_path: Path) -> None:
+    '''
+    Verify a temporary config gains theme keys from native_fields.
+
+    :param tmp_path: Temporary directory that holds the config file.
+    :type tmp_path: Path
+    '''
+
+    # Point at a config path that does not exist yet.
+    config_path = tmp_path / '.streamlit' / 'config.toml'
+    theme = Theme(
+        base='dark',
+        primary_color='#ff4b4b',
+        background_color='#0e1117',
+        secondary_background_color='#262730',
+        text_color='#fafafa',
+        font='serif',
+        custom_css='h1 { color: red; }',
+    )
+
+    # Write the native fields.
+    apply_theme_config(theme, config_path=str(config_path))
+
+    # Assert the theme table matches the native fields.
+    document = toml.load(str(config_path))
+    assert document['theme'] == theme.native_fields
+
+# ** test: apply_theme_config_merges_existing_content
+def test_apply_theme_config_merges_existing_content(tmp_path: Path) -> None:
+    '''
+    Verify an existing server section survives and a theme sibling is kept.
+
+    :param tmp_path: Temporary directory that holds the config file.
+    :type tmp_path: Path
+    '''
+
+    # Seed a config with a sibling section and an existing theme key.
+    config_path = tmp_path / 'config.toml'
+    with config_path.open('w', encoding='utf-8') as config_file:
+        toml.dump({
+            'server': {
+                'port': 8501,
+            },
+            'theme': {
+                'base': 'light',
+                'font': 'sans serif',
+            },
+        }, config_file)
+
+    # Update one theme key and add another.
+    apply_theme_config(
+        Theme(
+            primary_color='#ff4b4b',
+            font='serif',
+        ),
+        config_path=str(config_path),
+    )
+
+    # Assert the server section survives and the untouched theme key remains.
+    document = toml.load(str(config_path))
+    assert document['server'] == {'port': 8501}
+    assert document['theme']['base'] == 'light'
+    assert document['theme']['font'] == 'serif'
+    assert document['theme']['primaryColor'] == '#ff4b4b'
+
+# ** test: apply_theme_config_noop_without_native_fields
+def test_apply_theme_config_noop_without_native_fields(tmp_path: Path) -> None:
+    '''
+    Verify a CSS-only theme does not create the config file.
+
+    :param tmp_path: Temporary directory that must stay untouched.
+    :type tmp_path: Path
+    '''
+
+    # Point at a nested path that must not be created.
+    config_path = tmp_path / '.streamlit' / 'config.toml'
+
+    # Apply a theme with no native fields.
+    apply_theme_config(
+        Theme(custom_css='x'),
+        config_path=str(config_path),
+    )
+
+    # Assert the file was not created.
+    assert not config_path.exists()
+
+# *** tests: inject_theme_css
+
+# ** test: inject_theme_css_injects_markdown
+@patch('tiferet_streamlit.blueprints.streamlit.st')
+def test_inject_theme_css_injects_markdown(mock_st: MagicMock) -> None:
+    '''
+    Verify custom CSS is injected once as an unsafe HTML style block.
+
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    '''
+
+    # Inject a theme that carries custom CSS.
+    inject_theme_css(Theme(custom_css='h1 { color: red; }'))
+
+    # Assert markdown was called once with the style block.
+    mock_st.markdown.assert_called_once_with(
+        '<style>h1 { color: red; }</style>',
+        unsafe_allow_html=True,
+    )
+
+# ** test: inject_theme_css_noop_without_custom_css
+@patch('tiferet_streamlit.blueprints.streamlit.st')
+def test_inject_theme_css_noop_without_custom_css(mock_st: MagicMock) -> None:
+    '''
+    Verify markdown is not called when custom CSS is absent.
+
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    '''
+
+    # Inject themes whose custom CSS is missing or empty.
+    inject_theme_css(Theme())
+    inject_theme_css(Theme(custom_css=''))
+
+    # Assert markdown was not called.
+    mock_st.markdown.assert_not_called()
+
+# *** tests: build_streamlit_app theme
+
+# ** test: build_streamlit_app_with_theme_applies_theme
+@patch('tiferet_streamlit.blueprints.streamlit.inject_theme_css')
+@patch('tiferet_streamlit.blueprints.streamlit.apply_theme_config')
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
+def test_build_streamlit_app_with_theme_applies_theme(
+        mock_build_app: MagicMock,
+        mock_st: MagicMock,
+        mock_apply_theme_config: MagicMock,
+        mock_inject_theme_css: MagicMock,
+    ) -> None:
+    '''
+    Verify both theme helpers run when a theme is passed.
+
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
+    :param mock_st: The mocked streamlit module used by page navigation.
+    :type mock_st: MagicMock
+    :param mock_apply_theme_config: The mocked config writer.
+    :type mock_apply_theme_config: MagicMock
+    :param mock_inject_theme_css: The mocked CSS injector.
+    :type mock_inject_theme_css: MagicMock
+    '''
+
+    # Record call order so theme helpers must precede app construction.
+    order = []
+
+    def _record_apply(theme):
+        order.append('apply')
+
+    def _record_inject(theme):
+        order.append('inject')
+
+    def _record_build(*args, **kwargs):
+        order.append('build')
+        return MagicMock()
+
+    mock_apply_theme_config.side_effect = _record_apply
+    mock_inject_theme_css.side_effect = _record_inject
+    mock_build_app.side_effect = _record_build
+
+    # Set up navigation so page_ctx.run() completes.
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+
+    # Build with a theme.
+    theme = Theme(
+        primary_color='#ff4b4b',
+        custom_css='h1 { color: red; }',
+    )
+    build_streamlit_app(
+        'test_interface',
+        pages={'/home': StubView},
+        theme=theme,
+    )
+
+    # Assert both helpers ran with that theme, before the app was built.
+    mock_apply_theme_config.assert_called_once_with(theme)
+    mock_inject_theme_css.assert_called_once_with(theme)
+    assert order == ['apply', 'inject', 'build']
+
+# ** test: build_streamlit_app_without_theme_leaves_behavior_unchanged
+@patch('tiferet_streamlit.blueprints.streamlit.inject_theme_css')
+@patch('tiferet_streamlit.blueprints.streamlit.apply_theme_config')
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
+def test_build_streamlit_app_without_theme_leaves_behavior_unchanged(
+        mock_build_app: MagicMock,
+        mock_st: MagicMock,
+        mock_apply_theme_config: MagicMock,
+        mock_inject_theme_css: MagicMock,
+    ) -> None:
+    '''
+    Verify neither theme helper runs when theme is omitted.
+
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
+    :param mock_st: The mocked streamlit module used by page navigation.
+    :type mock_st: MagicMock
+    :param mock_apply_theme_config: The mocked config writer.
+    :type mock_apply_theme_config: MagicMock
+    :param mock_inject_theme_css: The mocked CSS injector.
+    :type mock_inject_theme_css: MagicMock
+    '''
+
+    # Configure the app returned by build_app.
+    mock_build_app.return_value = MagicMock()
+
+    # Set up navigation so page_ctx.run() completes.
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+
+    # Build without a theme.
+    build_streamlit_app('test_interface', pages={'/home': StubView})
+
+    # Assert theme helpers were skipped and navigation still ran.
+    mock_apply_theme_config.assert_not_called()
+    mock_inject_theme_css.assert_not_called()
+    mock_build_app.assert_called_once_with('test_interface')
+    mock_nav.run.assert_called_once()
