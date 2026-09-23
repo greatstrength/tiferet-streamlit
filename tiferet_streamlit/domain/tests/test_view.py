@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 # ** app
-from tiferet import TiferetError
+from tiferet.domain.core import ModelError
 from tiferet_streamlit.domain.view import Page
 
 # *** fixtures
@@ -144,7 +144,7 @@ def test_page_get_view_type_invalid_module(sample_page_data: dict) -> None:
     page = Page(**{**sample_page_data, 'view_module_path': 'nonexistent.module'})
 
     # Assert the structured invalid-view-type error is raised.
-    with pytest.raises(TiferetError) as exc_info:
+    with pytest.raises(ModelError) as exc_info:
         page.get_view_type()
 
     assert exc_info.value.error_code == 'INVALID_VIEW_TYPE'
@@ -162,7 +162,7 @@ def test_page_get_view_type_invalid_class(sample_page_data: dict) -> None:
     page = Page(**{**sample_page_data, 'view_class_name': 'NonexistentClass'})
 
     # Assert the structured invalid-view-type error is raised.
-    with pytest.raises(TiferetError) as exc_info:
+    with pytest.raises(ModelError) as exc_info:
         page.get_view_type()
 
     assert exc_info.value.error_code == 'INVALID_VIEW_TYPE'
@@ -181,7 +181,7 @@ def test_get_view_type_missing_module_raises_invalid_view_type(sample_page_data:
     page = Page(**{**sample_page_data, 'view_module_path': missing_module})
 
     # Assert the structured error carries the attempted path and class.
-    with pytest.raises(TiferetError) as exc_info:
+    with pytest.raises(ModelError) as exc_info:
         page.get_view_type()
 
     assert exc_info.value.error_code == 'INVALID_VIEW_TYPE'
@@ -203,7 +203,7 @@ def test_get_view_type_missing_class_raises_invalid_view_type(sample_page_data: 
     page = Page(**{**sample_page_data, 'view_class_name': missing_class})
 
     # Assert the structured error is raised instead of AttributeError.
-    with pytest.raises(TiferetError) as exc_info:
+    with pytest.raises(ModelError) as exc_info:
         page.get_view_type()
 
     assert not isinstance(exc_info.value, AttributeError)
