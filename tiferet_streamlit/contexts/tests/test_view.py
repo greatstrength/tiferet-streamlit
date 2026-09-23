@@ -10,6 +10,7 @@ from tiferet.contexts.app import AppSessionContext
 # ** app
 from tiferet_streamlit.contexts.session import SessionCacheContext
 from tiferet_streamlit.contexts.view import ViewContext, ViewComponent
+from tiferet_streamlit.domain import DispatchAuditRecord
 
 # *** helpers
 
@@ -217,6 +218,117 @@ def test_dispatch_with_headers(sample_view: SampleView, mock_app: MagicMock) -> 
         headers={'lang': 'en_US'},
         data={'x': 10},
     )
+
+
+# ** test: dispatch_logs_success
+def test_dispatch_logs_success(sample_view: SampleView, mock_app: MagicMock) -> None:
+    '''
+    Verify a successful dispatch appends one record and returns the run value.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Dispatch a feature.
+    result = sample_view.dispatch('calc.add', a=1, b=2)
+
+    # Assert dispatch returns the same run result.
+    assert result is mock_app.run.return_value
+    assert result == 'mock_result'
+
+    # Assert exactly one success record was stored under the literal key.
+    stored = sample_view.session.get('_audit_log')
+    assert len(stored) == 1
+    assert stored[0]['feature_id'] == 'calc.add'
+    assert stored[0]['arguments'] == {'a': 1, 'b': 2}
+    assert stored[0]['outcome'] == 'success'
+    assert stored[0]['result'] == 'mock_result'
+
+    # Assert the public log reconstructs that record.
+    records = sample_view.audit_log
+    assert len(records) == 1
+    assert isinstance(records[0], DispatchAuditRecord)
+    assert records[0].feature_id == 'calc.add'
+    assert records[0].arguments == {'a': 1, 'b': 2}
+    assert records[0].outcome == 'success'
+    assert records[0].result == 'mock_result'
+
+
+# ** test: dispatch_logs_error_and_reraises
+def test_dispatch_logs_error_and_reraises(sample_view: SampleView, mock_app: MagicMock) -> None:
+    '''
+    Verify a raised dispatch is logged and the same exception propagates.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Configure run to raise a specific error.
+    error = RuntimeError('boom')
+    mock_app.run.side_effect = error
+
+    # Assert the same RuntimeError propagates.
+    with pytest.raises(RuntimeError) as exc_info:
+        sample_view.dispatch('calc.add', a=1)
+
+    assert exc_info.value is error
+
+    # Assert exactly one error record was stored.
+    records = sample_view.audit_log
+    assert len(records) == 1
+    assert records[0].outcome == 'error'
+    assert records[0].result == 'boom'
+
+
+# ** test: audit_log_empty_before_dispatch
+def test_audit_log_empty_before_dispatch(sample_view: SampleView) -> None:
+    '''
+    Verify audit_log is empty before any dispatch.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Assert no records exist yet.
+    assert sample_view.audit_log == []
+
+
+# ** test: audit_log_is_namespaced
+def test_audit_log_is_namespaced(mock_app: MagicMock, mock_session_state: dict) -> None:
+    '''
+    Verify two views with different keys do not see each other's records.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Create two views with different keys.
+    left = SampleView(app=mock_app, key='left_view')
+    right = SampleView(app=mock_app, key='right_view')
+
+    # Dispatch a different feature on each view.
+    left.dispatch('calc.add', a=1)
+    right.dispatch('calc.sub', a=2)
+
+    # Assert each view sees only its own record.
+    assert len(left.audit_log) == 1
+    assert left.audit_log[0].feature_id == 'calc.add'
+    assert left.audit_log[0].arguments == {'a': 1}
+    assert len(right.audit_log) == 1
+    assert right.audit_log[0].feature_id == 'calc.sub'
+    assert right.audit_log[0].arguments == {'a': 2}
+
+    # Assert the stored key inside each namespace is the literal _audit_log.
+    assert 'left_view._audit_log' in mock_session_state
+    assert 'right_view._audit_log' in mock_session_state
+    assert mock_session_state['left_view._audit_log'][0]['feature_id'] == 'calc.add'
+    assert mock_session_state['right_view._audit_log'][0]['feature_id'] == 'calc.sub'
 
 
 # *** tests: view_context render
