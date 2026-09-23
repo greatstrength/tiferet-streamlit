@@ -4,9 +4,12 @@
 
 # ** core
 import inspect
+from pathlib import Path
 from typing import Any, Dict, List, Type
 
 # ** infra
+import streamlit as st
+import toml
 from tiferet import TiferetError
 from tiferet.blueprints.app import build_app
 
@@ -18,6 +21,7 @@ from ..assets.constants import (
 from ..contexts.session import SessionCacheContext
 from ..contexts.view import ViewContext
 from ..contexts.page import PageContext
+from ..domain.theme import Theme
 from ..domain.view import Page
 
 # *** functions
@@ -157,11 +161,77 @@ def build_pages_from_config(
     return page_ctx
 
 
+# ** blueprint: apply_theme_config
+def apply_theme_config(
+        theme: Theme,
+        config_path: str = '.streamlit/config.toml',
+    ) -> None:
+    '''
+    Merge a theme's native fields into the Streamlit config file.
+
+    Streamlit reads this file at process startup, so the write does not
+    re-theme the current process.
+
+    :param theme: The theme whose native fields are written.
+    :type theme: Theme
+    :param config_path: Path of the Streamlit config file to merge into.
+    :type config_path: str
+    :return: None.
+    :rtype: None
+    '''
+
+    # Skip the write when there are no native fields.
+    native_fields = theme.native_fields
+    if not native_fields:
+        return
+
+    # Load an existing document, or start from an empty one.
+    path = Path(config_path)
+    if path.exists():
+        with path.open(encoding='utf-8') as config_file:
+            document = toml.load(config_file)
+    else:
+        document = {}
+
+    # Merge native fields without replacing sibling sections.
+    document.setdefault('theme', {}).update(native_fields)
+
+    # Ensure the parent directory exists.
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Write the merged document.
+    with path.open('w', encoding='utf-8') as config_file:
+        toml.dump(document, config_file)
+
+
+# ** blueprint: inject_theme_css
+def inject_theme_css(theme: Theme) -> None:
+    '''
+    Inject a theme's custom CSS into the current Streamlit run.
+
+    :param theme: The theme whose custom CSS is injected.
+    :type theme: Theme
+    :return: None.
+    :rtype: None
+    '''
+
+    # Skip injection when custom CSS is missing or empty.
+    if not theme.custom_css:
+        return
+
+    # Inject the style block for this run.
+    st.markdown(
+        f'<style>{theme.custom_css}</style>',
+        unsafe_allow_html=True,
+    )
+
+
 # ** blueprint: build_streamlit_app
 def build_streamlit_app(
         interface_id: str,
         pages: Dict[str, Type[ViewContext]] = None,
         page_configs: List[Page] = None,
+        theme: Theme = None,
         **parameters,
     ):
     '''
@@ -174,9 +244,16 @@ def build_streamlit_app(
     :type pages: Dict[str, Type[ViewContext]]
     :param page_configs: Optional list of Page domain objects. Takes precedence over pages.
     :type page_configs: List[Page]
+    :param theme: Optional theme applied before the app is built. None performs no theme I/O.
+    :type theme: Theme
     :param parameters: Additional keyword arguments passed to build_app.
     :type parameters: dict
     '''
+
+    # Apply the declared theme before the app is built.
+    if theme is not None:
+        apply_theme_config(theme)
+        inject_theme_css(theme)
 
     # Build the app from the interface identifier.
     app = build_app(interface_id, **parameters)
@@ -210,6 +287,7 @@ def run(
         interface_id: str,
         pages: Dict[str, Type[ViewContext]] = None,
         page_configs: List[Page] = None,
+        theme: Theme = None,
         **parameters,
     ):
     '''
@@ -221,6 +299,8 @@ def run(
     :type pages: Dict[str, Type[ViewContext]]
     :param page_configs: Optional list of Page domain objects.
     :type page_configs: List[Page]
+    :param theme: Optional theme forwarded to build_streamlit_app.
+    :type theme: Theme
     :param parameters: Additional keyword arguments.
     :type parameters: dict
     '''
@@ -230,5 +310,6 @@ def run(
         interface_id,
         pages=pages,
         page_configs=page_configs,
+        theme=theme,
         **parameters,
     )
