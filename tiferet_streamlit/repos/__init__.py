@@ -1,4 +1,4 @@
 '''Tiferet Streamlit – Repos Package
 
-Placeholder for future YAML-backed and database-backed repository implementations.
+Repositories are not exported; they are resolved through dependency injection.
 '''
