@@ -6,9 +6,11 @@
 from typing import Any, Callable, Dict, List
 
 # ** infra
+from tiferet import TiferetError
 from tiferet.contexts.app import AppSessionContext
 
 # ** app
+from ..assets.constants import VIEW_RENDER_FAILED_ID
 from ..domain import DispatchAuditRecord
 from .session import SessionCacheContext
 
@@ -457,11 +459,31 @@ class ViewContext(object):
     def __call__(self):
         '''
         Make the view callable for Streamlit composition.
-        Delegates to render().
+
+        Delegates to render(). A successful result, including None, is
+        returned unchanged. NotImplementedError from the default render
+        path is re-raised. Any other exception is wrapped as a view render
+        failure chained from the original exception.
+
+        :return: The result of render().
+        :rtype: Any
+        :raises NotImplementedError: When render() is not overridden.
+        :raises TiferetError: When render() raises any other exception.
         '''
 
-        # Delegate to render.
-        return self.render()
+        # Delegate to render, wrapping a concrete failure.
+        try:
+            return self.render()
+        except NotImplementedError:
+            raise
+        except Exception as err:
+            try:
+                TiferetError.raise_error(
+                    VIEW_RENDER_FAILED_ID,
+                    view_key=self.key,
+                )
+            except TiferetError as failure:
+                raise failure from err
 
 # ** context: view_component
 class ViewComponent(object):

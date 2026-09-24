@@ -5,6 +5,7 @@
 # ** infra
 import pytest
 from unittest.mock import MagicMock
+from tiferet import TiferetError
 from tiferet.contexts.app import AppSessionContext
 
 # ** app
@@ -379,6 +380,59 @@ def test_callable_delegates_to_render(sample_view: SampleView) -> None:
 
     # Assert it delegated to render.
     assert result == 'rendered'
+
+# ** test: call_wraps_render_exception
+def test_call_wraps_render_exception(mock_app: MagicMock, mock_session_state: dict) -> None:
+    '''
+    Verify a concrete render failure becomes a chained view render error.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Define a view whose render raises a specific runtime error.
+    error = RuntimeError('render failed')
+
+    class FailingView(ViewContext):
+        def render(self):
+            raise error
+
+    view = FailingView(app=mock_app, key='failing_view')
+
+    # Assert the call wraps the runtime error.
+    with pytest.raises(TiferetError) as exc_info:
+        view()
+
+    # Assert the structured error carries the view key and the original cause.
+    failure = exc_info.value
+    assert failure.error_code == 'VIEW_RENDER_FAILED'
+    assert failure.kwargs['view_key'] == 'failing_view'
+    assert failure.__cause__ is error
+
+# ** test: call_does_not_wrap_not_implemented
+def test_call_does_not_wrap_not_implemented(mock_app: MagicMock, mock_session_state: dict) -> None:
+    '''
+    Verify the default render path still raises NotImplementedError.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Create a view that does not override render.
+    class BareView(ViewContext):
+        pass
+
+    view = BareView(app=mock_app, key='bare_call')
+
+    # Assert the call raises NotImplementedError, not a wrapped error.
+    with pytest.raises(NotImplementedError) as exc_info:
+        view()
+
+    assert not isinstance(exc_info.value, TiferetError)
 
 # ** test: multiple_renders_accumulate
 def test_multiple_renders_accumulate(mock_app: MagicMock, mock_session_state: dict) -> None:
