@@ -6,13 +6,14 @@
 import pytest
 
 # ** app
+from tiferet_streamlit import assets
 from tiferet_streamlit.assets import (
     INCOMPATIBLE_APP_CONTEXT_ID as EXPORTED_INCOMPATIBLE_APP_CONTEXT_ID,
     INVALID_VIEW_SERVICE_ID as EXPORTED_INVALID_VIEW_SERVICE_ID,
     VIEW_SERVICE_ID as EXPORTED_VIEW_SERVICE_ID,
 )
+from tiferet_streamlit.assets import constants
 from tiferet_streamlit.assets.constants import (
-    VIEW_NOT_INITIALIZED_ID,
     PAGE_NOT_FOUND_ID,
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
@@ -26,7 +27,6 @@ from tiferet_streamlit.assets.constants import (
 
 # ** test: all_constants_are_non_empty_strings
 @pytest.mark.parametrize('constant', [
-    VIEW_NOT_INITIALIZED_ID,
     PAGE_NOT_FOUND_ID,
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
@@ -51,7 +51,6 @@ def test_all_constants_are_non_empty_strings(constant: str) -> None:
 
 # ** test: constants_are_uppercase
 @pytest.mark.parametrize('constant', [
-    VIEW_NOT_INITIALIZED_ID,
     PAGE_NOT_FOUND_ID,
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
@@ -77,7 +76,6 @@ def test_constants_are_distinct() -> None:
 
     # Collect all error code constants.
     error_codes = [
-        VIEW_NOT_INITIALIZED_ID,
         PAGE_NOT_FOUND_ID,
         VIEW_RENDER_FAILED_ID,
         INVALID_VIEW_TYPE_ID,
@@ -113,3 +111,18 @@ def test_view_service_ids() -> None:
     # Assert the assets package exports the same constants.
     assert EXPORTED_VIEW_SERVICE_ID == VIEW_SERVICE_ID
     assert EXPORTED_INVALID_VIEW_SERVICE_ID == INVALID_VIEW_SERVICE_ID
+
+# ** test: view_not_initialized_id_is_removed
+def test_view_not_initialized_id_is_removed() -> None:
+    '''
+    Verify VIEW_NOT_INITIALIZED_ID is absent from constants and assets exports.
+    '''
+
+    # Assert the constant is not an attribute of the constants module.
+    assert not hasattr(constants, 'VIEW_NOT_INITIALIZED_ID')
+
+    # Assert the assets package does not export the constant.
+    assert not hasattr(assets, 'VIEW_NOT_INITIALIZED_ID')
+
+    # Assert the render-failure constant is unchanged.
+    assert VIEW_RENDER_FAILED_ID == 'VIEW_RENDER_FAILED'
