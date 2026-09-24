@@ -1,10 +1,6 @@
 name: Publish Python Package
 
 on:
-  push:
-    tags:
-      - 'v*'
-      - '!v*b*'
   release:
     types: [published]
 
