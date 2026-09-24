@@ -4,16 +4,9 @@
 
 # Use a try-except block to avoid import errors on build systems.
 try:
-    # Domain objects.
     from .domain import Page, Theme, DispatchAuditRecord
-
-    # Service interfaces.
     from .interfaces import ViewService
-
-    # Runtime contexts.
     from .contexts import SessionCacheContext, ViewContext, ViewComponent, PageContext, get_view_service
-
-    # Blueprint functions.
     from .blueprints import build_streamlit_app, build_streamlit_app as StreamlitApp
 
 except Exception as e:
