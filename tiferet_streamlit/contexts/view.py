@@ -3,7 +3,7 @@
 # *** imports
 
 # ** core
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 
 # ** infra
 from tiferet.contexts.app import AppSessionContext
@@ -11,6 +11,157 @@ from tiferet.contexts.app import AppSessionContext
 # ** app
 from ..domain import DispatchAuditRecord
 from .session import SessionCacheContext
+
+# *** functions
+
+# ** function: _bind_widget
+def _bind_widget(
+        session: SessionCacheContext,
+        key: str,
+        widget: Callable,
+        value_param: str = 'value',
+        default: Any = None,
+        **kwargs,
+    ) -> Any:
+    '''
+    Sync a widget value with session state.
+
+    :param session: Session cache that stores the widget value.
+    :type session: SessionCacheContext
+    :param key: Session key for the stored value.
+    :type key: str
+    :param widget: Callable that draws the widget and returns its value.
+    :type widget: Callable
+    :param value_param: Keyword passed to the widget as the current value.
+    :type value_param: str
+    :param default: Value used when the session key is missing.
+    :type default: Any
+    :param kwargs: Additional keyword arguments forwarded to the widget.
+    :type kwargs: dict
+    :return: The value returned by the widget.
+    :rtype: Any
+    '''
+
+    # Read the stored value.
+    current = session.get(key)
+
+    # Fall back to the default only when the stored value is None.
+    if current is None:
+        current = default
+
+    # Pass the current value into the widget and draw it.
+    kwargs[value_param] = current
+    new_value = widget(**kwargs)
+
+    # Write the widget result back.
+    session.set(key, new_value)
+
+    # Return the widget result.
+    return new_value
+
+# ** function: _bind_widget_dispatch
+def _bind_widget_dispatch(
+        session: SessionCacheContext,
+        dispatch: Callable,
+        key: str,
+        widget: Callable,
+        feature_id: str,
+        value_param: str = 'value',
+        default: Any = None,
+        dispatch_data: Callable[[Any], Dict] = None,
+        **kwargs,
+    ) -> Any:
+    '''
+    Sync a widget value and dispatch when it changes.
+
+    :param session: Session cache that stores the widget value.
+    :type session: SessionCacheContext
+    :param dispatch: Callable that runs a feature.
+    :type dispatch: Callable
+    :param key: Session key for the stored value.
+    :type key: str
+    :param widget: Callable that draws the widget and returns its value.
+    :type widget: Callable
+    :param feature_id: Feature to dispatch when the value changes.
+    :type feature_id: str
+    :param value_param: Keyword passed to the widget as the current value.
+    :type value_param: str
+    :param default: Value used when the session key is missing.
+    :type default: Any
+    :param dispatch_data: Optional mapper from the new value to dispatch keywords.
+    :type dispatch_data: Callable[[Any], Dict]
+    :param kwargs: Additional keyword arguments forwarded to the widget.
+    :type kwargs: dict
+    :return: The value returned by the widget.
+    :rtype: Any
+    '''
+
+    # Capture the value before the widget runs.
+    before = session.get(key)
+
+    # Sync the widget with session state.
+    new_value = _bind_widget(
+        session,
+        key,
+        widget,
+        value_param=value_param,
+        default=default,
+        **kwargs,
+    )
+
+    # Skip dispatch when the value did not change.
+    if new_value == before:
+        return new_value
+
+    # Build the dispatch payload from the mapper, or from the key.
+    if dispatch_data is not None:
+        data = dispatch_data(new_value)
+    else:
+        data = {key: new_value}
+
+    # Dispatch the feature with the payload.
+    dispatch(feature_id, **data)
+
+    # Return the widget result.
+    return new_value
+
+# ** function: _bind_trigger
+def _bind_trigger(
+        dispatch: Callable,
+        widget: Callable,
+        feature_id: str,
+        dispatch_data: Callable[[], Dict] = None,
+        **kwargs,
+    ) -> Any:
+    '''
+    Dispatch a feature when a widget returns a truthy value.
+
+    :param dispatch: Callable that runs a feature.
+    :type dispatch: Callable
+    :param widget: Callable that draws the widget and returns its result.
+    :type widget: Callable
+    :param feature_id: Feature to dispatch when the widget result is truthy.
+    :type feature_id: str
+    :param dispatch_data: Optional zero-argument mapper to dispatch keywords.
+    :type dispatch_data: Callable[[], Dict]
+    :param kwargs: Additional keyword arguments forwarded to the widget.
+    :type kwargs: dict
+    :return: The value returned by the widget.
+    :rtype: Any
+    '''
+
+    # Draw the widget without reading or writing session state.
+    triggered = widget(**kwargs)
+
+    # Dispatch only when the widget result is truthy.
+    if triggered:
+        dispatch(
+            feature_id,
+            **(dispatch_data() if dispatch_data else {}),
+        )
+
+    # Return the widget result either way.
+    return triggered
 
 # *** contexts
 
@@ -179,6 +330,119 @@ class ViewContext(object):
             for record in records
         ]
 
+    # * method: bind_widget
+    # >> see: @guides/widgets.md#viewcontext-bind-widget
+    def bind_widget(self,
+            key: str,
+            widget: Callable,
+            value_param: str = 'value',
+            default: Any = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Sync a widget value with this view's session.
+
+        :param key: Session key for the stored value.
+        :type key: str
+        :param widget: Callable that draws the widget and returns its value.
+        :type widget: Callable
+        :param value_param: Keyword passed to the widget as the current value.
+        :type value_param: str
+        :param default: Value used when the session key is missing.
+        :type default: Any
+        :param kwargs: Additional keyword arguments forwarded to the widget.
+        :type kwargs: dict
+        :return: The value returned by the widget.
+        :rtype: Any
+        '''
+
+        # Delegate value sync to the shared helper.
+        return _bind_widget(
+            self.session,
+            key,
+            widget,
+            value_param=value_param,
+            default=default,
+            **kwargs,
+        )
+
+    # * method: bind_widget_dispatch
+    # >> see: @guides/widgets.md#viewcontext-bind-widget-dispatch
+    def bind_widget_dispatch(self,
+            key: str,
+            widget: Callable,
+            feature_id: str,
+            value_param: str = 'value',
+            default: Any = None,
+            dispatch_data: Callable[[Any], Dict] = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Sync a widget value and dispatch when it changes.
+
+        :param key: Session key for the stored value.
+        :type key: str
+        :param widget: Callable that draws the widget and returns its value.
+        :type widget: Callable
+        :param feature_id: Feature to dispatch when the value changes.
+        :type feature_id: str
+        :param value_param: Keyword passed to the widget as the current value.
+        :type value_param: str
+        :param default: Value used when the session key is missing.
+        :type default: Any
+        :param dispatch_data: Optional mapper from the new value to dispatch keywords.
+        :type dispatch_data: Callable[[Any], Dict]
+        :param kwargs: Additional keyword arguments forwarded to the widget.
+        :type kwargs: dict
+        :return: The value returned by the widget.
+        :rtype: Any
+        '''
+
+        # Delegate change-triggered dispatch to the shared helper.
+        return _bind_widget_dispatch(
+            self.session,
+            self.dispatch,
+            key,
+            widget,
+            feature_id,
+            value_param=value_param,
+            default=default,
+            dispatch_data=dispatch_data,
+            **kwargs,
+        )
+
+    # * method: bind_trigger
+    # >> see: @guides/widgets.md#viewcontext-bind-trigger
+    def bind_trigger(self,
+            widget: Callable,
+            feature_id: str,
+            dispatch_data: Callable[[], Dict] = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Dispatch a feature when a widget returns a truthy value.
+
+        :param widget: Callable that draws the widget and returns its result.
+        :type widget: Callable
+        :param feature_id: Feature to dispatch when the widget result is truthy.
+        :type feature_id: str
+        :param dispatch_data: Optional zero-argument mapper to dispatch keywords.
+        :type dispatch_data: Callable[[], Dict]
+        :param kwargs: Additional keyword arguments forwarded to the widget.
+        :type kwargs: dict
+        :return: The value returned by the widget.
+        :rtype: Any
+        '''
+
+        # Delegate the truthy trigger to the shared helper.
+        return _bind_trigger(
+            self.dispatch,
+            widget,
+            feature_id,
+            dispatch_data=dispatch_data,
+            **kwargs,
+        )
+
     # * method: render
     def render(self):
         '''
@@ -220,6 +484,119 @@ class ViewComponent(object):
 
         # Set the parent view context.
         self.ctx = ctx
+
+    # * method: bind_widget
+    # >> see: @guides/widgets.md#viewcomponent-bind-widget
+    def bind_widget(self,
+            key: str,
+            widget: Callable,
+            value_param: str = 'value',
+            default: Any = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Sync a widget value with the parent view's session.
+
+        :param key: Session key for the stored value.
+        :type key: str
+        :param widget: Callable that draws the widget and returns its value.
+        :type widget: Callable
+        :param value_param: Keyword passed to the widget as the current value.
+        :type value_param: str
+        :param default: Value used when the session key is missing.
+        :type default: Any
+        :param kwargs: Additional keyword arguments forwarded to the widget.
+        :type kwargs: dict
+        :return: The value returned by the widget.
+        :rtype: Any
+        '''
+
+        # Delegate value sync to the parent view's shared helper.
+        return _bind_widget(
+            self.ctx.session,
+            key,
+            widget,
+            value_param=value_param,
+            default=default,
+            **kwargs,
+        )
+
+    # * method: bind_widget_dispatch
+    # >> see: @guides/widgets.md#viewcomponent-bind-widget-dispatch
+    def bind_widget_dispatch(self,
+            key: str,
+            widget: Callable,
+            feature_id: str,
+            value_param: str = 'value',
+            default: Any = None,
+            dispatch_data: Callable[[Any], Dict] = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Sync a widget value and dispatch on the parent view when it changes.
+
+        :param key: Session key for the stored value.
+        :type key: str
+        :param widget: Callable that draws the widget and returns its value.
+        :type widget: Callable
+        :param feature_id: Feature to dispatch when the value changes.
+        :type feature_id: str
+        :param value_param: Keyword passed to the widget as the current value.
+        :type value_param: str
+        :param default: Value used when the session key is missing.
+        :type default: Any
+        :param dispatch_data: Optional mapper from the new value to dispatch keywords.
+        :type dispatch_data: Callable[[Any], Dict]
+        :param kwargs: Additional keyword arguments forwarded to the widget.
+        :type kwargs: dict
+        :return: The value returned by the widget.
+        :rtype: Any
+        '''
+
+        # Delegate change-triggered dispatch to the parent view.
+        return _bind_widget_dispatch(
+            self.ctx.session,
+            self.ctx.dispatch,
+            key,
+            widget,
+            feature_id,
+            value_param=value_param,
+            default=default,
+            dispatch_data=dispatch_data,
+            **kwargs,
+        )
+
+    # * method: bind_trigger
+    # >> see: @guides/widgets.md#viewcomponent-bind-trigger
+    def bind_trigger(self,
+            widget: Callable,
+            feature_id: str,
+            dispatch_data: Callable[[], Dict] = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Dispatch a feature on the parent view when a widget returns a truthy value.
+
+        :param widget: Callable that draws the widget and returns its result.
+        :type widget: Callable
+        :param feature_id: Feature to dispatch when the widget result is truthy.
+        :type feature_id: str
+        :param dispatch_data: Optional zero-argument mapper to dispatch keywords.
+        :type dispatch_data: Callable[[], Dict]
+        :param kwargs: Additional keyword arguments forwarded to the widget.
+        :type kwargs: dict
+        :return: The value returned by the widget.
+        :rtype: Any
+        '''
+
+        # Delegate the truthy trigger to the parent view.
+        return _bind_trigger(
+            self.ctx.dispatch,
+            widget,
+            feature_id,
+            dispatch_data=dispatch_data,
+            **kwargs,
+        )
 
     # * method: render
     def render(self, **props):
