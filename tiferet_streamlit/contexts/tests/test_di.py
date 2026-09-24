@@ -15,9 +15,9 @@ from tiferet_streamlit.assets.constants import (
 from tiferet_streamlit.contexts.di import get_view_service
 from tiferet_streamlit.interfaces.view import ViewService
 
-# *** helpers
+# *** classes
 
-# ** helper: stub_view_service
+# ** class: stub_view_service
 class StubViewService(ViewService):
     '''
     Concrete ViewService double for resolution tests.
