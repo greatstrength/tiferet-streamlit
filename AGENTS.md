@@ -1,4 +1,4 @@
-# AGENTS.md — Tiferet Streamlit (v0.2.0)
+# AGENTS.md — Tiferet Streamlit (v1.0.0)
 
 ## Project Overview
 
@@ -7,7 +7,7 @@
 - **Repository:** https://github.com/greatstrength/tiferet-streamlit
 - **Branch:** `main`
 - **Python:** ≥ 3.10
-- **Version:** `0.2.0`
+- **Version:** `1.0.0`
 - **Dependencies:** `tiferet >= 2.0.0b3`, `streamlit >= 1.30.0`
 
 ## Architecture
@@ -16,7 +16,7 @@
 
 ```
 tiferet_streamlit/
-├── __init__.py          — Version (0.2.0) and public exports
+├── __init__.py          — Version (1.0.0) and public exports
 ├── assets/              — Constants (error codes, session key prefix)
 ├── blueprints/          — Stateless blueprint functions (create_view, build_pages, build_streamlit_app, run)
 ├── contexts/            — Runtime contexts (ViewContext, ViewComponent, SessionCacheContext, PageContext)
