@@ -2,10 +2,11 @@
 
 # *** exports
 
-# ** export: domain
-from .domain import Page, Theme, DispatchAuditRecord
-
+# Use a try-except block to avoid import errors on build systems.
 try:
+    # ** export: domain
+    from .domain import Page, Theme, DispatchAuditRecord
+
     # ** export: interfaces
     from .interfaces import ViewService
 
