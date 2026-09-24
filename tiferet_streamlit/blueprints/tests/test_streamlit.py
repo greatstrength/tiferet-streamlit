@@ -266,13 +266,149 @@ def test_build_streamlit_app_with_page_configs(
     # Assert navigation ran.
     mock_nav.run.assert_called_once()
 
+# ** test: build_streamlit_app_with_get_page_configs
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
+def test_build_streamlit_app_with_get_page_configs(
+        mock_build_app: MagicMock,
+        mock_st: MagicMock,
+    ) -> None:
+    '''
+    Verify omitted pages and page_configs invoke the callable once with the app.
+
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    '''
+
+    # Configure the app returned by build_app.
+    mock_app = MagicMock()
+    mock_build_app.return_value = mock_app
+
+    # Set up st mocks.
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+    mock_st.Page.return_value = 'page_obj'
+
+    # Return one page from the injected callable.
+    page_config = Page(
+        route='/callable',
+        title='Callable Page',
+        view_module_path='tiferet_streamlit.blueprints.tests.test_streamlit',
+        view_class_name='StubView',
+    )
+    get_page_configs = MagicMock(return_value=[page_config])
+
+    # Run with only the callable.
+    build_streamlit_app(
+        'test_interface',
+        get_page_configs=get_page_configs,
+    )
+
+    # Assert the callable received the built app once.
+    get_page_configs.assert_called_once_with(mock_app)
+
+    # Assert the returned list was registered.
+    mock_st.Page.assert_called_once()
+    call_kwargs = mock_st.Page.call_args[1]
+    assert call_kwargs['url_path'] == '/callable'
+    assert call_kwargs['title'] == 'Callable Page'
+
+# ** test: build_streamlit_app_page_configs_take_precedence_over_get_page_configs
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
+def test_build_streamlit_app_page_configs_take_precedence_over_get_page_configs(
+        mock_build_app: MagicMock,
+        mock_st: MagicMock,
+    ) -> None:
+    '''
+    Verify a non-None page_configs list wins and the callable is not called.
+
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    '''
+
+    # Configure the app returned by build_app.
+    mock_build_app.return_value = MagicMock()
+
+    # Set up st mocks.
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+    mock_st.Page.return_value = 'page_obj'
+
+    # Create a page config distinct from anything the callable might return.
+    page_config = Page(
+        route='/config',
+        title='Config Page',
+        view_module_path='tiferet_streamlit.blueprints.tests.test_streamlit',
+        view_class_name='StubView',
+    )
+    get_page_configs = MagicMock()
+
+    # Run with both a list and a callable.
+    build_streamlit_app(
+        'test_interface',
+        page_configs=[page_config],
+        get_page_configs=get_page_configs,
+    )
+
+    # Assert the callable was skipped and the list was registered.
+    get_page_configs.assert_not_called()
+    mock_st.Page.assert_called_once()
+    call_kwargs = mock_st.Page.call_args[1]
+    assert call_kwargs['url_path'] == '/config'
+    assert call_kwargs['title'] == 'Config Page'
+
+# ** test: build_streamlit_app_pages_take_precedence_over_get_page_configs
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
+def test_build_streamlit_app_pages_take_precedence_over_get_page_configs(
+        mock_build_app: MagicMock,
+        mock_st: MagicMock,
+    ) -> None:
+    '''
+    Verify a non-None pages dict wins and the callable is not called.
+
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    '''
+
+    # Configure the app returned by build_app.
+    mock_build_app.return_value = MagicMock()
+
+    # Set up st mocks.
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+    mock_st.Page.return_value = 'page_obj'
+
+    # Provide a callable that must not be invoked.
+    get_page_configs = MagicMock()
+
+    # Run with a pages dict and a callable.
+    build_streamlit_app(
+        'test_interface',
+        pages={'/dict': StubView},
+        get_page_configs=get_page_configs,
+    )
+
+    # Assert the callable was skipped and the dict route was registered.
+    get_page_configs.assert_not_called()
+    mock_st.Page.assert_called_once()
+    call_kwargs = mock_st.Page.call_args[1]
+    assert call_kwargs['url_path'] == '/dict'
+
 # ** test: build_streamlit_app_no_pages_raises_error
 @patch('tiferet_streamlit.blueprints.streamlit.build_app')
 def test_build_streamlit_app_no_pages_raises_error(
         mock_build_app: MagicMock,
     ) -> None:
     '''
-    Verify TiferetError is raised when no pages provided.
+    Verify TiferetError is raised when pages, page_configs, and get_page_configs are omitted.
 
     :param mock_build_app: The mocked build_app function.
     :type mock_build_app: MagicMock

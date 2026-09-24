@@ -5,7 +5,7 @@
 # ** core
 import inspect
 from pathlib import Path
-from typing import Any, Dict, List, Type
+from typing import Any, Callable, Dict, List, Type
 
 # ** infra
 import streamlit as st
@@ -225,6 +225,7 @@ def build_streamlit_app(
         interface_id: str,
         pages: Dict[str, Type[ViewContext]] = None,
         page_configs: List[Page] = None,
+        get_page_configs: Callable[..., List[Page]] = None,
         theme: Theme = None,
         **parameters,
     ):
@@ -238,6 +239,8 @@ def build_streamlit_app(
     :type pages: Dict[str, Type[ViewContext]]
     :param page_configs: Optional list of Page domain objects. Takes precedence over pages.
     :type page_configs: List[Page]
+    :param get_page_configs: Optional callable invoked with the built app. It may be ``lambda app: get_view_service(app).list_pages()``. This module does not import that function.
+    :type get_page_configs: Callable[..., List[Page]]
     :param theme: Optional theme applied before the app is built. None performs no theme I/O.
     :type theme: Theme
     :param parameters: Additional keyword arguments passed to build_app.
@@ -260,15 +263,19 @@ def build_streamlit_app(
             interface_id=interface_id,
         )
 
-    # Build pages from config if provided (takes precedence).
+    # Build pages from config when a list is provided, including an empty list.
     if page_configs is not None:
         page_ctx = build_pages_from_config(app, page_configs)
 
-    # Otherwise build pages from dict.
+    # Otherwise build pages from the route dict.
     elif pages is not None:
         page_ctx = build_pages(app, pages)
 
-    # Raise error if no pages provided.
+    # Otherwise invoke the page-config callable with the built app.
+    elif get_page_configs is not None:
+        page_ctx = build_pages_from_config(app, get_page_configs(app))
+
+    # Raise an error when no page source is provided.
     else:
         TiferetError.raise_error(PAGE_NOT_FOUND_ID)
 
@@ -280,6 +287,7 @@ def run(
         interface_id: str,
         pages: Dict[str, Type[ViewContext]] = None,
         page_configs: List[Page] = None,
+        get_page_configs: Callable[..., List[Page]] = None,
         theme: Theme = None,
         **parameters,
     ):
@@ -292,6 +300,8 @@ def run(
     :type pages: Dict[str, Type[ViewContext]]
     :param page_configs: Optional list of Page domain objects.
     :type page_configs: List[Page]
+    :param get_page_configs: Optional callable invoked with the built app. It may be ``lambda app: get_view_service(app).list_pages()``. This module does not import that function.
+    :type get_page_configs: Callable[..., List[Page]]
     :param theme: Optional theme forwarded to build_streamlit_app.
     :type theme: Theme
     :param parameters: Additional keyword arguments.
@@ -303,6 +313,7 @@ def run(
         interface_id,
         pages=pages,
         page_configs=page_configs,
+        get_page_configs=get_page_configs,
         theme=theme,
         **parameters,
     )
