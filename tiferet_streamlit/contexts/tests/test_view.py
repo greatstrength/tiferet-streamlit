@@ -939,3 +939,173 @@ def test_view_component_bind_uses_parent_session_and_dispatch(
     assert triggered is True
     sample_view.dispatch.assert_any_call('feat.go')
     assert mock_session_state == before
+
+# *** tests: before-paint trigger
+
+# ** test: bind_trigger_on_click_does_not_dispatch_during_render
+def test_bind_trigger_on_click_does_not_dispatch_during_render(
+        sample_view: SampleView,
+    ) -> None:
+    '''
+    Verify the bind call passes on_click, does not dispatch, and reads session.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Replace dispatch so it can be asserted as not called.
+    sample_view.dispatch = MagicMock()
+
+    # Seed a value already stored under the key.
+    sample_view.session.set('choice', 'kept')
+
+    # Bind a widget that records kwargs and returns a widget-side result.
+    calls = []
+    result = sample_view.bind_trigger_on_click(
+        'choice',
+        recording_widget(calls, 'ignored'),
+        'feat.go',
+        label='Go',
+    )
+
+    # Assert on_click was passed and dispatch was not called during the bind.
+    assert len(calls) == 1
+    assert calls[0]['label'] == 'Go'
+    assert callable(calls[0]['on_click'])
+    sample_view.dispatch.assert_not_called()
+
+    # Assert the return value is the stored value, not the widget result.
+    assert result == 'kept'
+    assert sample_view.session.get('choice') == 'kept'
+
+# ** test: bind_trigger_on_click_callback_writes_session
+def test_bind_trigger_on_click_callback_writes_session(
+        sample_view: SampleView,
+    ) -> None:
+    '''
+    Verify invoking the captured callback dispatches once and writes session.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Replace dispatch with a scripted return value.
+    sample_view.dispatch = MagicMock(return_value='dispatched')
+
+    # Map dispatch_data to explicit keywords.
+    def to_payload():
+        '''Return keyword arguments for the dispatch.'''
+        return {'unit': 'kg'}
+
+    # Bind the trigger and capture the callback.
+    calls = []
+    sample_view.bind_trigger_on_click(
+        'choice',
+        recording_widget(calls, None),
+        'feat.go',
+        dispatch_data=to_payload,
+    )
+    callback = calls[0]['on_click']
+
+    # Invoke the callback as the widget would.
+    callback()
+
+    # Assert dispatch ran once with the mapped keywords and session was written.
+    sample_view.dispatch.assert_called_once_with('feat.go', unit='kg')
+    assert sample_view.session.get('choice') == 'dispatched'
+
+# ** test: bind_trigger_on_click_callback_does_not_write_on_error
+def test_bind_trigger_on_click_callback_does_not_write_on_error(
+        sample_view: SampleView,
+    ) -> None:
+    '''
+    Verify a raised dispatch propagates and does not write the session key.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Configure dispatch to raise a specific error.
+    error = RuntimeError('boom')
+    sample_view.dispatch = MagicMock(side_effect=error)
+
+    # Bind the trigger and capture the callback.
+    calls = []
+    sample_view.bind_trigger_on_click(
+        'choice',
+        recording_widget(calls, None),
+        'feat.go',
+    )
+    callback = calls[0]['on_click']
+
+    # Assert the same exception propagates from the callback.
+    with pytest.raises(RuntimeError) as exc_info:
+        callback()
+    assert exc_info.value is error
+
+    # Assert the session key was not written.
+    assert sample_view.session.get('choice') is None
+
+# ** test: view_component_bind_trigger_on_click_uses_parent
+def test_view_component_bind_trigger_on_click_uses_parent(
+        sample_view: SampleView,
+    ) -> None:
+    '''
+    Verify the component method uses the parent session and parent dispatch.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    '''
+
+    # Replace parent dispatch with a scripted return value.
+    sample_view.dispatch = MagicMock(return_value='picked')
+    comp = SampleComponent(ctx=sample_view)
+
+    # Bind through the component and capture the callback.
+    calls = []
+    result = comp.bind_trigger_on_click(
+        'choice',
+        recording_widget(calls, None),
+        'feat.pick',
+    )
+
+    # Assert the bind call did not dispatch and read the parent session.
+    sample_view.dispatch.assert_not_called()
+    assert result == sample_view.session.get('choice')
+
+    # Invoke the callback and assert it wrote the parent session via parent dispatch.
+    callback = calls[0]['on_click']
+    callback()
+    sample_view.dispatch.assert_called_once_with('feat.pick')
+    assert sample_view.session.get('choice') == 'picked'
+
+# ** test: bind_trigger_timing_unchanged
+def test_bind_trigger_timing_unchanged(
+        sample_view: SampleView,
+        mock_session_state: dict,
+    ) -> None:
+    '''
+    Verify bind_trigger still dispatches during the call and never writes session.
+
+    :param sample_view: The sample view instance.
+    :type sample_view: SampleView
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Replace dispatch and snapshot session state before the call.
+    sample_view.dispatch = MagicMock()
+    before = dict(mock_session_state)
+
+    # Bind a truthy widget with no dispatch_data.
+    result = sample_view.bind_trigger(
+        recording_widget([], True),
+        'data.load',
+    )
+
+    # Assert the truthy result dispatched during the call itself.
+    assert result is True
+    sample_view.dispatch.assert_called_once_with('data.load')
+
+    # Assert session state is unchanged by the truthy-trigger path.
+    assert mock_session_state == before
