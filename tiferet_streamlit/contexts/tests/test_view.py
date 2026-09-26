@@ -5,7 +5,7 @@
 # ** infra
 import pytest
 from unittest.mock import MagicMock, patch
-from tiferet import TiferetError
+from tiferet import TiferetError, TiferetAPIError
 from tiferet.contexts.app import AppSessionContext
 
 # ** app
@@ -555,6 +555,107 @@ def test_call_does_not_wrap_not_implemented(mock_app: MagicMock, mock_session_st
         view()
 
     assert not isinstance(exc_info.value, TiferetError)
+
+# ** test: call_propagates_tiferet_error
+def test_call_propagates_tiferet_error(mock_app: MagicMock, mock_session_state: dict) -> None:
+    '''
+    Verify a TiferetError raised by render() propagates unwrapped.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Define a view whose render raises a structured TiferetError.
+    error = TiferetError('CALC_FAILED', message='divide by zero')
+
+    class FailingView(ViewContext):
+        def render(self):
+            raise error
+
+    view = FailingView(app=mock_app, key='failing_view')
+
+    # Assert the same instance propagates unwrapped.
+    with pytest.raises(TiferetError) as exc_info:
+        view()
+
+    failure = exc_info.value
+    assert failure is error
+    assert failure.error_code == 'CALC_FAILED'
+    assert failure.__cause__ is None
+
+# ** test: call_propagates_tiferet_api_error
+def test_call_propagates_tiferet_api_error(mock_app: MagicMock, mock_session_state: dict) -> None:
+    '''
+    Verify a TiferetAPIError raised by render() propagates unwrapped.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Define a view whose render raises a structured TiferetAPIError.
+    error = TiferetAPIError(
+        'CALC_FAILED',
+        message='divide by zero',
+        name='Calc Failed',
+    )
+
+    class FailingView(ViewContext):
+        def render(self):
+            raise error
+
+    view = FailingView(app=mock_app, key='failing_view')
+
+    # Assert the same instance propagates unwrapped.
+    with pytest.raises(TiferetAPIError) as exc_info:
+        view()
+
+    failure = exc_info.value
+    assert failure is error
+    assert failure.error_code == 'CALC_FAILED'
+    assert failure.message == 'divide by zero'
+    assert failure.name == 'Calc Failed'
+    assert failure.__cause__ is None
+
+# ** test: call_does_not_return_result_envelope
+def test_call_does_not_return_result_envelope(mock_app: MagicMock, mock_session_state: dict) -> None:
+    '''
+    Verify a successful call returns the raw result, not a result envelope.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Create a view whose render returns a plain value.
+    class SucceedingView(ViewContext):
+        def render(self):
+            return 'ok'
+
+    view = SucceedingView(app=mock_app, key='succeeding_view')
+
+    # Assert the raw result is returned, not a dict with an ok key.
+    result = view()
+    assert result == 'ok'
+    assert not (isinstance(result, dict) and 'ok' in result)
+
+    # Assert a propagated TiferetError is an exception, not a returned dict.
+    error = TiferetError('CALC_FAILED', message='divide by zero')
+
+    class FailingView(ViewContext):
+        def render(self):
+            raise error
+
+    failing_view = FailingView(app=mock_app, key='failing_view')
+
+    with pytest.raises(TiferetError) as exc_info:
+        failing_view()
+
+    assert exc_info.value is error
 
 # ** test: multiple_renders_accumulate
 def test_multiple_renders_accumulate(mock_app: MagicMock, mock_session_state: dict) -> None:

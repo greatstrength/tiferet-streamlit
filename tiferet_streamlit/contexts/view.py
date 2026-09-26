@@ -6,7 +6,7 @@
 from typing import Any, Callable, Dict, List
 
 # ** infra
-from tiferet import TiferetError
+from tiferet import TiferetError, TiferetAPIError
 from tiferet.contexts.app import AppSessionContext
 
 # ** app
@@ -620,19 +620,25 @@ class ViewContext(object):
 
         Delegates to render(). A successful result, including None, is
         returned unchanged. NotImplementedError from the default render
-        path is re-raised. Any other exception is wrapped as a view render
-        failure chained from the original exception.
+        path is re-raised. A TiferetError or TiferetAPIError, including one
+        that escaped a feature call, is re-raised unchanged. Any other
+        exception is wrapped as a view render failure chained from the
+        original exception.
 
         :return: The result of render().
         :rtype: Any
         :raises NotImplementedError: When render() is not overridden.
-        :raises TiferetError: When render() raises any other exception.
+        :raises TiferetError: When render() raises this unchanged.
+        :raises TiferetAPIError: When render() raises this unchanged.
+        :raises TiferetError: VIEW_RENDER_FAILED, when render() raises any other exception.
         '''
 
         # Delegate to render, wrapping a concrete failure.
         try:
             return self.render()
         except NotImplementedError:
+            raise
+        except (TiferetError, TiferetAPIError):
             raise
         except Exception as err:
             try:
