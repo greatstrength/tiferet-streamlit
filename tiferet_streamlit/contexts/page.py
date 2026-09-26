@@ -7,9 +7,34 @@ from typing import Dict
 
 # ** infra
 import streamlit as st
+from streamlit.runtime.scriptrunner_utils.script_run_context import get_script_run_ctx
+from tiferet import TiferetError
 
 # ** app
+from ..assets.constants import INVALID_NAVIGATION_POSITION_ID
 from .view import ViewContext
+
+# *** functions
+
+# ** function: _page_config_can_precede_first_streamlit_call
+def _page_config_can_precede_first_streamlit_call() -> bool:
+    '''
+    Check whether st.set_page_config can still be the first Streamlit command
+    issued during the current script run.
+
+    :return: True when a script run context exists and no commands have been tracked yet.
+    :rtype: bool
+    '''
+
+    # Resolve the current script run context.
+    ctx = get_script_run_ctx()
+
+    # A missing context means no Streamlit call can safely go first.
+    if ctx is None:
+        return False
+
+    # Only a context with no tracked commands can still go first.
+    return not ctx.tracked_commands
 
 # *** contexts
 
@@ -42,9 +67,10 @@ class PageContext(object):
             view: ViewContext,
             title: str = None,
             icon: str = None,
+            layout: str = None,
         ):
         '''
-        Register a page with its route, view, title, and icon.
+        Register a page with its route, view, title, icon, and layout.
 
         :param route: The URL path for the page.
         :type route: str
@@ -54,6 +80,8 @@ class PageContext(object):
         :type title: str
         :param icon: Optional icon for navigation.
         :type icon: str
+        :param layout: Optional page layout ("centered" or "wide") applied via set_page_config when uniform across pages.
+        :type layout: str
         '''
 
         # Store the view and metadata under the route key.
@@ -61,14 +89,36 @@ class PageContext(object):
             view=view,
             title=title or route,
             icon=icon,
+            layout=layout,
         )
 
     # * method: run
-    def run(self):
+    # >> see: @guides/page_context.md#pagecontext-run
+    def run(self, position: str = 'sidebar'):
         '''
         Build st.Page objects from registered pages, pass them to
         st.navigation(), and run the selected page.
+
+        :param position: Where Streamlit renders navigation: "sidebar" or "top".
+        :type position: str
+        :raises TiferetError: If position is not "sidebar" or "top".
         '''
+
+        # Reject any position other than sidebar or top.
+        if position not in ('sidebar', 'top'):
+            TiferetError.raise_error(
+                INVALID_NAVIGATION_POSITION_ID,
+                message='position must be "sidebar" or "top".',
+                position=position,
+            )
+
+        # Apply a shared layout before the first Streamlit call, when eligible.
+        layouts = {
+            meta['layout'] for meta in self.pages.values()
+            if meta['layout'] is not None
+        }
+        if _page_config_can_precede_first_streamlit_call() and len(layouts) == 1:
+            st.set_page_config(layout=layouts.pop())
 
         # Build st.Page objects for each registered page.
         page_list = []
@@ -89,7 +139,7 @@ class PageContext(object):
             page_list.append(st.Page(**page_kwargs))
 
         # Delegate to Streamlit navigation.
-        nav = st.navigation(page_list)
+        nav = st.navigation(page_list, position=position)
 
         # Run the selected page.
         nav.run()

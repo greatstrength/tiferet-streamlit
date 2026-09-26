@@ -196,6 +196,34 @@ def test_build_pages_from_config_returns_page_context(mock_app_interface: MagicM
     assert page_ctx.pages['/home']['title'] == 'Home'
     assert page_ctx.pages['/home']['icon'] == '🏠'
 
+# ** test: build_pages_from_config_stores_layout
+def test_build_pages_from_config_stores_layout(mock_app_interface: MagicMock) -> None:
+    '''
+    Verify a Page's layout is stored on the registry, and build_pages stores none.
+
+    :param mock_app_interface: The mocked app interface context.
+    :type mock_app_interface: MagicMock
+    '''
+
+    # Create a Page domain object with a non-default layout.
+    page_config = Page(
+        route='/home',
+        title='Home',
+        layout='wide',
+        view_module_path='tiferet_streamlit.blueprints.tests.test_streamlit',
+        view_class_name='StubView',
+    )
+
+    # Build pages from config.
+    page_ctx = build_pages_from_config(mock_app_interface, [page_config])
+
+    # Assert the layout is stored.
+    assert page_ctx.pages['/home']['layout'] == 'wide'
+
+    # Assert build_pages still stores no layout, title, or icon.
+    dict_page_ctx = build_pages(mock_app_interface, {'/home': StubView})
+    assert dict_page_ctx.pages['/home']['layout'] is None
+
 # *** tests: build_streamlit_app
 
 # ** test: build_streamlit_app_with_pages
