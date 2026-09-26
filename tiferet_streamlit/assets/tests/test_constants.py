@@ -18,6 +18,7 @@ from tiferet_streamlit.assets.constants import (
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
     INCOMPATIBLE_APP_CONTEXT_ID,
+    INTERFACE_ID_REQUIRED_ID,
     VIEW_SERVICE_ID,
     INVALID_VIEW_SERVICE_ID,
     SESSION_KEY_PREFIX,
@@ -31,6 +32,7 @@ from tiferet_streamlit.assets.constants import (
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
     INCOMPATIBLE_APP_CONTEXT_ID,
+    INTERFACE_ID_REQUIRED_ID,
     VIEW_SERVICE_ID,
     INVALID_VIEW_SERVICE_ID,
     SESSION_KEY_PREFIX,
@@ -55,6 +57,7 @@ def test_all_constants_are_non_empty_strings(constant: str) -> None:
     VIEW_RENDER_FAILED_ID,
     INVALID_VIEW_TYPE_ID,
     INCOMPATIBLE_APP_CONTEXT_ID,
+    INTERFACE_ID_REQUIRED_ID,
     INVALID_VIEW_SERVICE_ID,
 ])
 def test_constants_are_uppercase(constant: str) -> None:
@@ -80,6 +83,7 @@ def test_constants_are_distinct() -> None:
         VIEW_RENDER_FAILED_ID,
         INVALID_VIEW_TYPE_ID,
         INCOMPATIBLE_APP_CONTEXT_ID,
+        INTERFACE_ID_REQUIRED_ID,
         INVALID_VIEW_SERVICE_ID,
     ]
 
