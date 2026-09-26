@@ -165,6 +165,110 @@ def _bind_trigger(
     # Return the widget result either way.
     return triggered
 
+# ** function: _append_dispatch_audit
+def _append_dispatch_audit(
+        session: SessionCacheContext,
+        feature_id: str,
+        data: Dict[str, Any],
+        outcome: str,
+        result: Any,
+    ) -> None:
+    '''
+    Append one dispatch audit record to an existing session cache.
+
+    :param session: Session cache that already exists. Never constructed here.
+    :type session: SessionCacheContext
+    :param feature_id: Feature that was dispatched.
+    :type feature_id: str
+    :param data: Keyword arguments passed as feature data.
+    :type data: Dict[str, Any]
+    :param outcome: Whether the dispatch succeeded or raised.
+    :type outcome: str
+    :param result: Feature result, or the exception text.
+    :type result: Any
+    '''
+
+    # Build the audit record from the dispatch outcome.
+    record = DispatchAuditRecord(
+        feature_id=feature_id,
+        arguments=data,
+        outcome=outcome,
+        result=result,
+    )
+
+    # Read the existing log, or start an empty one.
+    log = session.get('_audit_log') or []
+
+    # Append the serialized record.
+    log.append(record.model_dump())
+
+    # Store the updated log under the literal session key.
+    session.set('_audit_log', log)
+
+# ** function: dispatch
+def dispatch(
+        app: AppSessionContext,
+        feature_id: str,
+        headers: Dict[str, str] = None,
+        session: SessionCacheContext = None,
+        **data,
+    ) -> Any:
+    '''
+    Dispatch a Tiferet feature without constructing a ViewContext.
+
+    Lets a callback reach app.run directly, so it never triggers a
+    ViewContext's one-time init_state as a side effect. Audit is written
+    only when an existing session is passed in.
+
+    :param app: Tiferet app session context for feature dispatch.
+    :type app: AppSessionContext
+    :param feature_id: The feature identifier to execute.
+    :type feature_id: str
+    :param headers: Optional request headers.
+    :type headers: Dict[str, str]
+    :param session: Existing session cache to audit against. No audit when None.
+    :type session: SessionCacheContext
+    :param data: Keyword arguments passed as feature data.
+    :type data: dict
+    :return: The feature result.
+    :rtype: Any
+    '''
+
+    try:
+        # Delegate to the app context run method.
+        result = app.run(
+            feature_id=feature_id,
+            headers=headers or {},
+            data=data,
+        )
+
+    except Exception as exception:
+        # Record the failed dispatch only when a session was passed.
+        if session is not None:
+            _append_dispatch_audit(
+                session,
+                feature_id,
+                data,
+                outcome='error',
+                result=str(exception),
+            )
+
+        # Re-raise the original exception.
+        raise
+
+    # Record the successful dispatch only when a session was passed.
+    if session is not None:
+        _append_dispatch_audit(
+            session,
+            feature_id,
+            data,
+            outcome='success',
+            result=result,
+        )
+
+    # Return the same feature result.
+    return result
+
 # *** contexts
 
 # ** context: view_context
@@ -243,36 +347,14 @@ class ViewContext(object):
         :rtype: Any
         '''
 
-        try:
-            # Delegate to the app context run method.
-            result = self.app.run(
-                feature_id=feature_id,
-                headers=headers or {},
-                data=data,
-            )
-
-        except Exception as exception:
-            # Record the failed dispatch before re-raising.
-            self._log_dispatch(
-                feature_id=feature_id,
-                data=data,
-                outcome='error',
-                result=str(exception),
-            )
-
-            # Re-raise the original exception.
-            raise
-
-        # Record the successful dispatch.
-        self._log_dispatch(
-            feature_id=feature_id,
-            data=data,
-            outcome='success',
-            result=result,
+        # Delegate to the module-level dispatch, auditing via this view's session.
+        return dispatch(
+            self.app,
+            feature_id,
+            headers=headers,
+            session=self.session,
+            **data,
         )
-
-        # Return the same feature result.
-        return result
 
     # * method: _log_dispatch
     def _log_dispatch(self,
@@ -294,22 +376,8 @@ class ViewContext(object):
         :type result: Any
         '''
 
-        # Build the audit record from the dispatch outcome.
-        record = DispatchAuditRecord(
-            feature_id=feature_id,
-            arguments=data,
-            outcome=outcome,
-            result=result,
-        )
-
-        # Read the existing log, or start an empty one.
-        log = self.session.get('_audit_log') or []
-
-        # Append the serialized record.
-        log.append(record.model_dump())
-
-        # Store the updated log under the literal session key.
-        self.session.set('_audit_log', log)
+        # Delegate to the shared audit writer.
+        _append_dispatch_audit(self.session, feature_id, data, outcome, result)
 
     # * method: audit_log (property)
     @property
