@@ -8,8 +8,10 @@ import pytest
 # ** app
 from tiferet_streamlit import assets
 from tiferet_streamlit.assets import (
+    DECLARED_TIFERET_REQUIREMENT as EXPORTED_DECLARED_TIFERET_REQUIREMENT,
     INCOMPATIBLE_APP_CONTEXT_ID as EXPORTED_INCOMPATIBLE_APP_CONTEXT_ID,
     INVALID_VIEW_SERVICE_ID as EXPORTED_INVALID_VIEW_SERVICE_ID,
+    TIFERET_VERSION_OUT_OF_RANGE_ID as EXPORTED_TIFERET_VERSION_OUT_OF_RANGE_ID,
     VIEW_SERVICE_ID as EXPORTED_VIEW_SERVICE_ID,
     INVALID_NAVIGATION_POSITION_ID as EXPORTED_INVALID_NAVIGATION_POSITION_ID,
 )
@@ -24,6 +26,8 @@ from tiferet_streamlit.assets.constants import (
     INVALID_VIEW_SERVICE_ID,
     INVALID_NAVIGATION_POSITION_ID,
     SESSION_KEY_PREFIX,
+    TIFERET_VERSION_OUT_OF_RANGE_ID,
+    DECLARED_TIFERET_REQUIREMENT,
 )
 
 # *** tests
@@ -39,6 +43,8 @@ from tiferet_streamlit.assets.constants import (
     INVALID_VIEW_SERVICE_ID,
     INVALID_NAVIGATION_POSITION_ID,
     SESSION_KEY_PREFIX,
+    TIFERET_VERSION_OUT_OF_RANGE_ID,
+    DECLARED_TIFERET_REQUIREMENT,
 ])
 def test_all_constants_are_non_empty_strings(constant: str) -> None:
     '''
@@ -63,6 +69,7 @@ def test_all_constants_are_non_empty_strings(constant: str) -> None:
     INTERFACE_ID_REQUIRED_ID,
     INVALID_VIEW_SERVICE_ID,
     INVALID_NAVIGATION_POSITION_ID,
+    TIFERET_VERSION_OUT_OF_RANGE_ID,
 ])
 def test_constants_are_uppercase(constant: str) -> None:
     '''
@@ -90,6 +97,7 @@ def test_constants_are_distinct() -> None:
         INTERFACE_ID_REQUIRED_ID,
         INVALID_VIEW_SERVICE_ID,
         INVALID_NAVIGATION_POSITION_ID,
+        TIFERET_VERSION_OUT_OF_RANGE_ID,
     ]
 
     # Assert all values are distinct.
@@ -147,3 +155,17 @@ def test_view_not_initialized_id_is_removed() -> None:
 
     # Assert the render-failure constant is unchanged.
     assert VIEW_RENDER_FAILED_ID == 'VIEW_RENDER_FAILED'
+
+# ** test: declared_tiferet_requirement
+def test_declared_tiferet_requirement() -> None:
+    '''
+    Verify the declared tiferet requirement string and version-gate error id.
+    '''
+
+    # Assert the constant values.
+    assert DECLARED_TIFERET_REQUIREMENT == 'tiferet>=2.1.1'
+    assert TIFERET_VERSION_OUT_OF_RANGE_ID == 'TIFERET_VERSION_OUT_OF_RANGE'
+
+    # Assert the assets package exports the same constants.
+    assert EXPORTED_DECLARED_TIFERET_REQUIREMENT == DECLARED_TIFERET_REQUIREMENT
+    assert EXPORTED_TIFERET_VERSION_OUT_OF_RANGE_ID == TIFERET_VERSION_OUT_OF_RANGE_ID

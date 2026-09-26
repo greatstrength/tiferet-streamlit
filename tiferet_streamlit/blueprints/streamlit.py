@@ -10,14 +10,18 @@ from typing import Any, Callable, Dict, List, Type
 # ** infra
 import streamlit as st
 import toml
+from packaging.specifiers import SpecifierSet
+import tiferet
 from tiferet import TiferetError
 from tiferet.blueprints.app import build_app
 
 # ** app
 from ..assets.constants import (
+    DECLARED_TIFERET_REQUIREMENT,
     INCOMPATIBLE_APP_CONTEXT_ID,
     INTERFACE_ID_REQUIRED_ID,
     PAGE_NOT_FOUND_ID,
+    TIFERET_VERSION_OUT_OF_RANGE_ID,
 )
 from ..contexts.session import SessionCacheContext
 from ..contexts.view import ViewContext
@@ -27,14 +31,51 @@ from ..domain.view import Page
 
 # *** functions
 
+# ** function: installed_tiferet_satisfies_declared_range
+def installed_tiferet_satisfies_declared_range() -> bool:
+    '''
+    Check whether the installed tiferet version satisfies the declared range.
+
+    :return: True when tiferet.__version__ satisfies DECLARED_TIFERET_REQUIREMENT, otherwise False.
+    :rtype: bool
+    '''
+
+    # Isolate the specifier portion of the declared requirement string.
+    specifier = SpecifierSet(DECLARED_TIFERET_REQUIREMENT.split('tiferet', 1)[1])
+
+    # Return whether the installed version satisfies that specifier.
+    return tiferet.__version__ in specifier
+
+# ** function: assert_declared_tiferet_range
+def assert_declared_tiferet_range() -> None:
+    '''
+    Raise when the installed tiferet version is outside the declared range.
+
+    :return: None.
+    :rtype: None
+    '''
+
+    # Accept an installed version that satisfies the declared range.
+    if installed_tiferet_satisfies_declared_range():
+        return
+
+    # Raise one error naming both the installed and declared versions.
+    TiferetError.raise_error(
+        TIFERET_VERSION_OUT_OF_RANGE_ID,
+        message=f'Installed tiferet {tiferet.__version__} is outside the declared range {DECLARED_TIFERET_REQUIREMENT}.',
+        installed_version=tiferet.__version__,
+        declared_range=DECLARED_TIFERET_REQUIREMENT,
+    )
+
 # ** function: is_app_context_compatible
 def is_app_context_compatible(app: Any) -> bool:
     '''
-    Check whether an app exposes a run(feature_id, headers, data)-shaped callable.
+    Check whether an app exposes a run(feature_id, headers, data)-shaped callable
+    built against a tiferet install inside the declared range.
 
     :param app: The object returned by build_app.
     :type app: Any
-    :return: True when run accepts that call shape, otherwise False.
+    :return: True when run accepts that call shape and the installed tiferet version is in range, otherwise False.
     :rtype: bool
     '''
 
@@ -55,7 +96,11 @@ def is_app_context_compatible(app: Any) -> bool:
     except (TypeError, ValueError):
         return False
 
-    # Accept a matching call shape.
+    # Reject a matching call shape when the installed version is out of range.
+    if not installed_tiferet_satisfies_declared_range():
+        return False
+
+    # Accept a matching call shape backed by an in-range version.
     return True
 
 # *** blueprints
