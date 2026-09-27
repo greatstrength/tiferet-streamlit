@@ -12,11 +12,14 @@ from unittest.mock import MagicMock, patch
 from tiferet.contexts.app import AppSessionContext
 
 # ** app
+import tiferet_streamlit
 from tiferet import TiferetError
 from tiferet_streamlit.assets.constants import (
     INCOMPATIBLE_APP_CONTEXT_ID,
     INTERFACE_ID_REQUIRED_ID,
     PAGE_NOT_FOUND_ID,
+    TIFERET_VERSION_OUT_OF_RANGE_ID,
+    DECLARED_TIFERET_REQUIREMENT,
 )
 from tiferet_streamlit.contexts.session import SessionCacheContext
 from tiferet_streamlit.contexts.view import ViewContext
@@ -32,11 +35,13 @@ from tiferet_streamlit.blueprints.streamlit import (
     apply_theme_config,
     inject_theme_css,
     run,
+    assert_declared_tiferet_range,
+    installed_tiferet_satisfies_declared_range,
 )
 
-# *** helpers
+# *** classes
 
-# ** helper: stub_view
+# ** class: stub_view
 class StubView(ViewContext):
     '''
     Minimal ViewContext subclass for testing.
@@ -917,3 +922,105 @@ def test_build_streamlit_app_without_theme_leaves_behavior_unchanged(
     mock_inject_theme_css.assert_not_called()
     mock_build_app.assert_called_once_with('test_interface')
     mock_nav.run.assert_called_once()
+
+# *** tests: package root export
+
+# ** test: inject_theme_css_exported_from_package_root
+def test_inject_theme_css_exported_from_package_root() -> None:
+    '''
+    Verify inject_theme_css is exported from the package root.
+    '''
+
+    # Assert the package-root export is the same function object.
+    assert tiferet_streamlit.inject_theme_css is inject_theme_css
+
+# *** tests: declared tiferet range
+
+# ** test: installed_tiferet_satisfies_declared_range_rejects_out_of_range
+@patch('tiferet_streamlit.blueprints.streamlit.tiferet')
+def test_installed_tiferet_satisfies_declared_range_rejects_out_of_range(mock_tiferet: MagicMock) -> None:
+    '''
+    Verify a version below the declared range does not satisfy it.
+
+    :param mock_tiferet: The mocked tiferet module.
+    :type mock_tiferet: MagicMock
+    '''
+
+    # Patch the installed version to an out-of-range value.
+    mock_tiferet.__version__ = '2.0.0b3'
+
+    # Assert the predicate rejects it.
+    assert installed_tiferet_satisfies_declared_range() is False
+
+# ** test: assert_declared_tiferet_range_names_both_versions
+@patch('tiferet_streamlit.blueprints.streamlit.tiferet')
+def test_assert_declared_tiferet_range_names_both_versions(mock_tiferet: MagicMock) -> None:
+    '''
+    Verify the raised TiferetError names both the installed and declared versions.
+
+    :param mock_tiferet: The mocked tiferet module.
+    :type mock_tiferet: MagicMock
+    '''
+
+    # Patch the installed version to an out-of-range value.
+    mock_tiferet.__version__ = '2.0.0b3'
+
+    # Assert one TiferetError is raised with the expected error code.
+    with pytest.raises(TiferetError) as exc_info:
+        assert_declared_tiferet_range()
+
+    error = exc_info.value
+    assert error.error_code == TIFERET_VERSION_OUT_OF_RANGE_ID
+
+    # Assert the message names both versions.
+    message = str(error)
+    assert '2.0.0b3' in message
+    assert DECLARED_TIFERET_REQUIREMENT in message
+
+    # Assert the kwargs match the installed and declared versions.
+    assert error.kwargs['installed_version'] == '2.0.0b3'
+    assert error.kwargs['declared_range'] == DECLARED_TIFERET_REQUIREMENT
+
+# *** tests: is_app_context_compatible version gate
+
+# ** test: is_app_context_compatible_rejects_out_of_range_version
+@patch('tiferet_streamlit.blueprints.streamlit.installed_tiferet_satisfies_declared_range')
+def test_is_app_context_compatible_rejects_out_of_range_version(mock_in_range: MagicMock) -> None:
+    '''
+    Verify a matching run shape still returns False when the range predicate is False.
+
+    :param mock_in_range: The mocked range predicate.
+    :type mock_in_range: MagicMock
+    '''
+
+    # Force the range predicate to fail.
+    mock_in_range.return_value = False
+
+    # Build an app whose run method matches the required call shape.
+    class CompatibleApp(object):
+        def run(self, feature_id, headers, data):
+            return None
+
+    # Assert the out-of-range version is rejected despite the matching shape.
+    assert is_app_context_compatible(CompatibleApp()) is False
+
+# ** test: is_app_context_compatible_does_not_trust_version_string
+@patch('tiferet_streamlit.blueprints.streamlit.installed_tiferet_satisfies_declared_range')
+def test_is_app_context_compatible_does_not_trust_version_string(mock_in_range: MagicMock) -> None:
+    '''
+    Verify a wrong-shaped run still returns False even when the version is in range.
+
+    :param mock_in_range: The mocked range predicate.
+    :type mock_in_range: MagicMock
+    '''
+
+    # Force the range predicate to pass.
+    mock_in_range.return_value = True
+
+    # Build an app whose run method cannot accept headers and data.
+    class WrongShapedApp(object):
+        def run(self, feature_id):
+            return None
+
+    # Assert the wrong call shape is rejected regardless of the in-range version.
+    assert is_app_context_compatible(WrongShapedApp()) is False
