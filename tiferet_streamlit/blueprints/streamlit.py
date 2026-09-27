@@ -16,6 +16,7 @@ from tiferet.blueprints.app import build_app
 # ** app
 from ..assets.constants import (
     INCOMPATIBLE_APP_CONTEXT_ID,
+    INTERFACE_ID_REQUIRED_ID,
     PAGE_NOT_FOUND_ID,
 )
 from ..contexts.session import SessionCacheContext
@@ -222,18 +223,19 @@ def inject_theme_css(theme: Theme) -> None:
 
 # ** blueprint: build_streamlit_app
 def build_streamlit_app(
-        interface_id: str,
+        interface_id: str = None,
         pages: Dict[str, Type[ViewContext]] = None,
         page_configs: List[Page] = None,
         get_page_configs: Callable[..., List[Page]] = None,
         theme: Theme = None,
+        app: Any = None,
         **parameters,
     ):
     '''
-    Primary entry point. Builds the Tiferet app, builds pages,
+    Primary entry point. Builds or reuses the Tiferet app, builds pages,
     and runs the Streamlit application.
 
-    :param interface_id: The Tiferet interface ID to load.
+    :param interface_id: The Tiferet interface ID to load. Required only when app is not supplied.
     :type interface_id: str
     :param pages: Optional dict mapping routes to ViewContext classes.
     :type pages: Dict[str, Type[ViewContext]]
@@ -243,24 +245,41 @@ def build_streamlit_app(
     :type get_page_configs: Callable[..., List[Page]]
     :param theme: Optional theme applied before the app is built. None performs no theme I/O.
     :type theme: Theme
+    :param app: Optional pre-built Tiferet app. When supplied, build_app is not called.
+    :type app: Any
     :param parameters: Additional keyword arguments passed to build_app.
     :type parameters: dict
     '''
 
-    # Apply the declared theme before the app is built.
+    # Apply the declared theme before the app is built or reused.
     if theme is not None:
         apply_theme_config(theme)
         inject_theme_css(theme)
 
-    # Build the app from the interface identifier.
-    app = build_app(interface_id, **parameters)
+    # Reuse the supplied app when given.
+    if app is not None:
+        incompatible_app_message = 'The supplied app does not expose a run(feature_id, headers, data)-shaped callable; the installed tiferet version may be incompatible with tiferet-streamlit.'
+        incompatible_app_kwargs = {}
+
+    # Otherwise require an interface_id to build one.
+    else:
+        if interface_id is None:
+            TiferetError.raise_error(
+                INTERFACE_ID_REQUIRED_ID,
+                message='interface_id is required when app is absent.',
+            )
+
+        # Build the app from the interface identifier.
+        app = build_app(interface_id, **parameters)
+        incompatible_app_message = f'The app built for interface "{interface_id}" does not expose a run(feature_id, headers, data)-shaped callable; the installed tiferet version may be incompatible with tiferet-streamlit.'
+        incompatible_app_kwargs = {'interface_id': interface_id}
 
     # Reject an app that cannot accept run(feature_id, headers, data).
     if not is_app_context_compatible(app):
         TiferetError.raise_error(
             INCOMPATIBLE_APP_CONTEXT_ID,
-            message=f'The app built for interface "{interface_id}" does not expose a run(feature_id, headers, data)-shaped callable; the installed tiferet version may be incompatible with tiferet-streamlit.',
-            interface_id=interface_id,
+            message=incompatible_app_message,
+            **incompatible_app_kwargs,
         )
 
     # Build pages from config when a list is provided, including an empty list.
@@ -284,17 +303,18 @@ def build_streamlit_app(
 
 # ** blueprint: run
 def run(
-        interface_id: str,
+        interface_id: str = None,
         pages: Dict[str, Type[ViewContext]] = None,
         page_configs: List[Page] = None,
         get_page_configs: Callable[..., List[Page]] = None,
         theme: Theme = None,
+        app: Any = None,
         **parameters,
     ):
     '''
     Convenience alias that delegates to build_streamlit_app.
 
-    :param interface_id: The Tiferet interface ID to load.
+    :param interface_id: The Tiferet interface ID to load. Required only when app is not supplied.
     :type interface_id: str
     :param pages: Optional dict mapping routes to ViewContext classes.
     :type pages: Dict[str, Type[ViewContext]]
@@ -304,6 +324,8 @@ def run(
     :type get_page_configs: Callable[..., List[Page]]
     :param theme: Optional theme forwarded to build_streamlit_app.
     :type theme: Theme
+    :param app: Optional pre-built Tiferet app forwarded to build_streamlit_app.
+    :type app: Any
     :param parameters: Additional keyword arguments.
     :type parameters: dict
     '''
@@ -315,5 +337,6 @@ def run(
         page_configs=page_configs,
         get_page_configs=get_page_configs,
         theme=theme,
+        app=app,
         **parameters,
     )

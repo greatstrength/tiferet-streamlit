@@ -15,6 +15,7 @@ from tiferet.contexts.app import AppSessionContext
 from tiferet import TiferetError
 from tiferet_streamlit.assets.constants import (
     INCOMPATIBLE_APP_CONTEXT_ID,
+    INTERFACE_ID_REQUIRED_ID,
     PAGE_NOT_FOUND_ID,
 )
 from tiferet_streamlit.contexts.session import SessionCacheContext
@@ -30,6 +31,7 @@ from tiferet_streamlit.blueprints.streamlit import (
     is_app_context_compatible,
     apply_theme_config,
     inject_theme_css,
+    run,
 )
 
 # *** helpers
@@ -500,6 +502,124 @@ def test_build_streamlit_app_raises_on_incompatible_app_context(
     # Assert no pages were built.
     mock_build_pages.assert_not_called()
     mock_build_pages_from_config.assert_not_called()
+
+# *** tests: build_streamlit_app app
+
+# ** test: build_streamlit_app_with_app_skips_build_app
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
+def test_build_streamlit_app_with_app_skips_build_app(
+        mock_build_app: MagicMock,
+        mock_st: MagicMock,
+        mock_app_interface: MagicMock,
+    ) -> None:
+    '''
+    Verify a supplied app skips build_app and is still compatibility-checked.
+
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    :param mock_app_interface: The mocked app interface context.
+    :type mock_app_interface: MagicMock
+    '''
+
+    # Set up st mocks.
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+
+    # Run with a supplied app and no interface_id.
+    build_streamlit_app(app=mock_app_interface, pages={'/home': StubView})
+
+    # Assert build_app was not called.
+    mock_build_app.assert_not_called()
+
+    # Assert navigation ran on the supplied app.
+    mock_nav.run.assert_called_once()
+
+# ** test: build_streamlit_app_supplied_app_incompatible
+@patch('tiferet_streamlit.blueprints.streamlit.build_pages_from_config')
+@patch('tiferet_streamlit.blueprints.streamlit.build_pages')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
+def test_build_streamlit_app_supplied_app_incompatible(
+        mock_build_app: MagicMock,
+        mock_build_pages: MagicMock,
+        mock_build_pages_from_config: MagicMock,
+    ) -> None:
+    '''
+    Verify an incompatible supplied app raises before build_app or any page is built.
+
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
+    :param mock_build_pages: The mocked build_pages function.
+    :type mock_build_pages: MagicMock
+    :param mock_build_pages_from_config: The mocked build_pages_from_config function.
+    :type mock_build_pages_from_config: MagicMock
+    '''
+
+    # Assert the incompatible-app error is raised for a run-less supplied app.
+    with pytest.raises(TiferetError) as exc_info:
+        build_streamlit_app(app=object(), pages={'/home': StubView})
+
+    assert exc_info.value.error_code == INCOMPATIBLE_APP_CONTEXT_ID
+
+    # Assert build_app and page building were skipped.
+    mock_build_app.assert_not_called()
+    mock_build_pages.assert_not_called()
+    mock_build_pages_from_config.assert_not_called()
+
+# ** test: build_streamlit_app_requires_interface_id_when_app_absent
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
+def test_build_streamlit_app_requires_interface_id_when_app_absent(
+        mock_build_app: MagicMock,
+    ) -> None:
+    '''
+    Verify the missing-interface_id error is raised when app and interface_id are both absent.
+
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
+    '''
+
+    # Assert the interface-id-required error is raised.
+    with pytest.raises(TiferetError) as exc_info:
+        build_streamlit_app()
+
+    assert exc_info.value.error_code == INTERFACE_ID_REQUIRED_ID
+
+    # Assert build_app was not called.
+    mock_build_app.assert_not_called()
+
+# ** test: run_forwards_app
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.blueprints.streamlit.build_app')
+def test_run_forwards_app(
+        mock_build_app: MagicMock,
+        mock_st: MagicMock,
+        mock_app_interface: MagicMock,
+    ) -> None:
+    '''
+    Verify run forwards a supplied app as a keyword and reaches navigation.
+
+    :param mock_build_app: The mocked build_app function.
+    :type mock_build_app: MagicMock
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    :param mock_app_interface: The mocked app interface context.
+    :type mock_app_interface: MagicMock
+    '''
+
+    # Set up st mocks.
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+
+    # Run with a supplied app and no interface_id.
+    run(app=mock_app_interface, pages={'/home': StubView})
+
+    # Assert build_app was not called.
+    mock_build_app.assert_not_called()
+
+    # Assert navigation ran on the supplied app.
+    mock_nav.run.assert_called_once()
 
 # *** tests: is_app_context_compatible
 
