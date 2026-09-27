@@ -4,13 +4,13 @@
 
 # ** infra
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from tiferet import TiferetError
 from tiferet.contexts.app import AppSessionContext
 
 # ** app
 from tiferet_streamlit.contexts.session import SessionCacheContext
-from tiferet_streamlit.contexts.view import ViewContext, ViewComponent
+from tiferet_streamlit.contexts.view import ViewContext, ViewComponent, dispatch
 from tiferet_streamlit.domain import DispatchAuditRecord
 
 # *** helpers
@@ -342,6 +342,128 @@ def test_audit_log_is_namespaced(mock_app: MagicMock, mock_session_state: dict) 
     assert 'right_view._audit_log' in mock_session_state
     assert mock_session_state['left_view._audit_log'][0]['feature_id'] == 'calc.add'
     assert mock_session_state['right_view._audit_log'][0]['feature_id'] == 'calc.sub'
+
+# *** tests: module dispatch
+
+# ** test: module_dispatch_does_not_construct_view
+def test_module_dispatch_does_not_construct_view(mock_app: MagicMock) -> None:
+    '''
+    Verify module dispatch calls app.run directly without a ViewContext.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Patch ViewContext to detect construction.
+    with patch('tiferet_streamlit.contexts.view.ViewContext') as mock_view_cls:
+        result = dispatch(mock_app, 'calc.add', a=1)
+
+        # Assert no ViewContext was constructed.
+        mock_view_cls.assert_not_called()
+
+    # Assert app.run was called with the expected arguments.
+    mock_app.run.assert_called_once_with(
+        feature_id='calc.add',
+        headers={},
+        data={'a': 1},
+    )
+
+    # Assert the module function returns app.run's return value.
+    assert result is mock_app.run.return_value
+
+# ** test: module_dispatch_skips_audit_without_session
+def test_module_dispatch_skips_audit_without_session(mock_app: MagicMock) -> None:
+    '''
+    Verify a session-less dispatch never reads or writes an audit log.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Patch SessionCacheContext to detect construction on the success path.
+    with patch('tiferet_streamlit.contexts.view.SessionCacheContext') as mock_session_cls:
+        result = dispatch(mock_app, 'calc.add', a=1)
+
+        # Assert no session cache was constructed for auditing.
+        mock_session_cls.assert_not_called()
+
+    assert result is mock_app.run.return_value
+
+    # Configure run to raise, and assert the same exception propagates.
+    error = RuntimeError('boom')
+    mock_app.run.side_effect = error
+
+    with patch('tiferet_streamlit.contexts.view.SessionCacheContext') as mock_session_cls:
+        with pytest.raises(RuntimeError) as exc_info:
+            dispatch(mock_app, 'calc.add', a=1)
+
+        # Assert no session cache was constructed on the error path either.
+        mock_session_cls.assert_not_called()
+
+    assert exc_info.value is error
+
+# ** test: module_dispatch_audits_when_session_passed
+def test_module_dispatch_audits_when_session_passed(
+        mock_app: MagicMock,
+        mock_session_state: dict,
+    ) -> None:
+    '''
+    Verify a passed session records one entry per outcome and stays unwired to init.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Build a real session cache to inspect the written audit log.
+    session = SessionCacheContext(namespace='module_dispatch')
+
+    # Successful dispatch appends one success record.
+    result = dispatch(mock_app, 'calc.add', session=session, a=1)
+    assert result is mock_app.run.return_value
+
+    log = session.get('_audit_log')
+    assert len(log) == 1
+    assert log[0]['feature_id'] == 'calc.add'
+    assert log[0]['outcome'] == 'success'
+
+    # Failing dispatch appends one error record and re-raises.
+    error = RuntimeError('boom')
+    mock_app.run.side_effect = error
+    with pytest.raises(RuntimeError) as exc_info:
+        dispatch(mock_app, 'calc.add', session=session, a=1)
+    assert exc_info.value is error
+
+    log = session.get('_audit_log')
+    assert len(log) == 2
+    assert log[1]['outcome'] == 'error'
+    assert log[1]['result'] == 'boom'
+
+    # Assert module dispatch never touches the view lifecycle flag.
+    assert session.get('_initialized') is None
+
+# ** test: module_dispatch_keeps_headers_out_of_data
+def test_module_dispatch_keeps_headers_out_of_data(mock_app: MagicMock) -> None:
+    '''
+    Verify headers and session are passed separately from feature data.
+
+    :param mock_app: The mocked app context.
+    :type mock_app: MagicMock
+    '''
+
+    # Build a real session so it can be asserted absent from feature data.
+    session = SessionCacheContext(namespace='module_dispatch_headers')
+
+    # Dispatch with explicit headers and a session.
+    dispatch(mock_app, 'feat.x', headers={'lang': 'en_US'}, session=session, x=10)
+
+    # Assert headers were forwarded as headers, and data excludes headers/session.
+    mock_app.run.assert_called_once_with(
+        feature_id='feat.x',
+        headers={'lang': 'en_US'},
+        data={'x': 10},
+    )
 
 # *** tests: view_context render
 
