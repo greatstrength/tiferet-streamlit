@@ -39,9 +39,9 @@ from tiferet_streamlit.blueprints.streamlit import (
     installed_tiferet_satisfies_declared_range,
 )
 
-# *** helpers
+# *** classes
 
-# ** helper: stub_view
+# ** class: stub_view
 class StubView(ViewContext):
     '''
     Minimal ViewContext subclass for testing.
