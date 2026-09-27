@@ -165,6 +165,59 @@ def _bind_trigger(
     # Return the widget result either way.
     return triggered
 
+# ** function: _bind_trigger_on_click
+def _bind_trigger_on_click(
+        session: SessionCacheContext,
+        dispatch: Callable,
+        key: str,
+        widget: Callable,
+        feature_id: str,
+        dispatch_data: Callable[[], Dict] = None,
+        **kwargs,
+    ) -> Any:
+    '''
+    Dispatch a feature from a widget's on_click callback, before paint.
+
+    :param session: Session cache the callback writes and the caller reads.
+    :type session: SessionCacheContext
+    :param dispatch: Callable with the same call shape as ViewContext.dispatch.
+    :type dispatch: Callable
+    :param key: Session key the callback writes. Not a Streamlit widget key.
+    :type key: str
+    :param widget: Caller-supplied widget callable that accepts on_click.
+    :type widget: Callable
+    :param feature_id: Feature the callback dispatches.
+    :type feature_id: str
+    :param dispatch_data: Optional zero-argument mapper to dispatch keywords.
+    :type dispatch_data: Callable[[], Dict]
+    :param kwargs: Additional keyword arguments forwarded to the widget, except on_click.
+    :type kwargs: dict
+    :return: The value stored under key before the callback runs on this render.
+    :rtype: Any
+    '''
+
+    # Drop a caller-supplied on_click; this helper owns the callback.
+    kwargs.pop('on_click', None)
+
+    # Build the callback that dispatches, then writes the session.
+    def callback():
+        '''Dispatch the feature and store the result before paint.'''
+
+        # Dispatch the feature with the mapped keywords, if any.
+        result = dispatch(
+            feature_id,
+            **(dispatch_data() if dispatch_data else {}),
+        )
+
+        # Write the dispatch result to the session.
+        session.set(key, result)
+
+    # Draw the widget and register the callback; do not dispatch from its return.
+    widget(**kwargs, on_click=callback)
+
+    # Return the value already stored; the callback has not run on this render.
+    return session.get(key)
+
 # ** function: _append_dispatch_audit
 def _append_dispatch_audit(
         session: SessionCacheContext,
@@ -513,6 +566,43 @@ class ViewContext(object):
             **kwargs,
         )
 
+    # * method: bind_trigger_on_click
+    # >> see: @guides/widgets.md#viewcontext-bind-trigger-on-click
+    def bind_trigger_on_click(self,
+            key: str,
+            widget: Callable,
+            feature_id: str,
+            dispatch_data: Callable[[], Dict] = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Dispatch a feature from a widget's on_click callback, before paint.
+
+        :param key: Session key the callback writes.
+        :type key: str
+        :param widget: Caller-supplied widget callable that accepts on_click.
+        :type widget: Callable
+        :param feature_id: Feature the callback dispatches.
+        :type feature_id: str
+        :param dispatch_data: Optional zero-argument mapper to dispatch keywords.
+        :type dispatch_data: Callable[[], Dict]
+        :param kwargs: Additional keyword arguments forwarded to the widget.
+        :type kwargs: dict
+        :return: The value returned by the shared helper.
+        :rtype: Any
+        '''
+
+        # Delegate the before-paint trigger to the shared helper.
+        return _bind_trigger_on_click(
+            self.session,
+            self.dispatch,
+            key,
+            widget,
+            feature_id,
+            dispatch_data=dispatch_data,
+            **kwargs,
+        )
+
     # * method: render
     def render(self):
         '''
@@ -682,6 +772,43 @@ class ViewComponent(object):
         # Delegate the truthy trigger to the parent view.
         return _bind_trigger(
             self.ctx.dispatch,
+            widget,
+            feature_id,
+            dispatch_data=dispatch_data,
+            **kwargs,
+        )
+
+    # * method: bind_trigger_on_click
+    # >> see: @guides/widgets.md#viewcomponent-bind-trigger-on-click
+    def bind_trigger_on_click(self,
+            key: str,
+            widget: Callable,
+            feature_id: str,
+            dispatch_data: Callable[[], Dict] = None,
+            **kwargs,
+        ) -> Any:
+        '''
+        Dispatch a feature on the parent view from a widget's on_click callback, before paint.
+
+        :param key: Session key the callback writes.
+        :type key: str
+        :param widget: Caller-supplied widget callable that accepts on_click.
+        :type widget: Callable
+        :param feature_id: Feature the callback dispatches.
+        :type feature_id: str
+        :param dispatch_data: Optional zero-argument mapper to dispatch keywords.
+        :type dispatch_data: Callable[[], Dict]
+        :param kwargs: Additional keyword arguments forwarded to the widget.
+        :type kwargs: dict
+        :return: The value returned by the shared helper.
+        :rtype: Any
+        '''
+
+        # Delegate the before-paint trigger to the parent view.
+        return _bind_trigger_on_click(
+            self.ctx.session,
+            self.ctx.dispatch,
+            key,
             widget,
             feature_id,
             dispatch_data=dispatch_data,

@@ -53,11 +53,27 @@ amount = self.bind_widget_dispatch(
 
 Calls the widget and returns its result either way. A falsy result does not dispatch. A truthy result dispatches with `dispatch_data()` when that callable is given, otherwise with no extra keywords. Session state is not read or written.
 
+Showing and editing a value in the same render() is one frame late.
+
 ```python
 self.bind_trigger(st.button, 'data.load', label='Load')
 ```
 
-`ViewComponent` exposes the same three methods. A component call uses the parent view's session and `dispatch`; the call site is still `self.bind_*`.
+## Before-Paint Trigger
+
+<a id="viewcontext-bind-trigger-on-click"></a>
+<a id="viewcomponent-bind-trigger-on-click"></a>
+**`bind_trigger_on_click(key, widget, feature_id, dispatch_data=None, **kwargs) -> Any`**
+
+**Before-paint trigger** — write the session in the widget callback; `render()` only reads.
+
+Passes an `on_click` callback to the widget instead of dispatching from the widget's return value. The callback dispatches the feature and writes the result to `key`, and it runs before the next paint, so a value it writes is visible to widgets drawn later in that same `render()`. The bind call itself does not dispatch; it returns `session.get(key)`, the value stored before this render's callback runs. This path does not change `bind_trigger`.
+
+```python
+self.bind_trigger_on_click('choice', st.button, 'data.load', label='Load')
+```
+
+`ViewComponent` exposes the same four methods. A component call uses the parent view's session and `dispatch`; the call site is still `self.bind_*`.
 
 ## Boundaries
 
