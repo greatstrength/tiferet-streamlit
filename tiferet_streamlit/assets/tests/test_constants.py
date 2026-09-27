@@ -11,6 +11,7 @@ from tiferet_streamlit.assets import (
     INCOMPATIBLE_APP_CONTEXT_ID as EXPORTED_INCOMPATIBLE_APP_CONTEXT_ID,
     INVALID_VIEW_SERVICE_ID as EXPORTED_INVALID_VIEW_SERVICE_ID,
     VIEW_SERVICE_ID as EXPORTED_VIEW_SERVICE_ID,
+    INVALID_NAVIGATION_POSITION_ID as EXPORTED_INVALID_NAVIGATION_POSITION_ID,
 )
 from tiferet_streamlit.assets import constants
 from tiferet_streamlit.assets.constants import (
@@ -21,6 +22,7 @@ from tiferet_streamlit.assets.constants import (
     INTERFACE_ID_REQUIRED_ID,
     VIEW_SERVICE_ID,
     INVALID_VIEW_SERVICE_ID,
+    INVALID_NAVIGATION_POSITION_ID,
     SESSION_KEY_PREFIX,
 )
 
@@ -35,6 +37,7 @@ from tiferet_streamlit.assets.constants import (
     INTERFACE_ID_REQUIRED_ID,
     VIEW_SERVICE_ID,
     INVALID_VIEW_SERVICE_ID,
+    INVALID_NAVIGATION_POSITION_ID,
     SESSION_KEY_PREFIX,
 ])
 def test_all_constants_are_non_empty_strings(constant: str) -> None:
@@ -59,6 +62,7 @@ def test_all_constants_are_non_empty_strings(constant: str) -> None:
     INCOMPATIBLE_APP_CONTEXT_ID,
     INTERFACE_ID_REQUIRED_ID,
     INVALID_VIEW_SERVICE_ID,
+    INVALID_NAVIGATION_POSITION_ID,
 ])
 def test_constants_are_uppercase(constant: str) -> None:
     '''
@@ -85,6 +89,7 @@ def test_constants_are_distinct() -> None:
         INCOMPATIBLE_APP_CONTEXT_ID,
         INTERFACE_ID_REQUIRED_ID,
         INVALID_VIEW_SERVICE_ID,
+        INVALID_NAVIGATION_POSITION_ID,
     ]
 
     # Assert all values are distinct.
@@ -115,6 +120,18 @@ def test_view_service_ids() -> None:
     # Assert the assets package exports the same constants.
     assert EXPORTED_VIEW_SERVICE_ID == VIEW_SERVICE_ID
     assert EXPORTED_INVALID_VIEW_SERVICE_ID == INVALID_VIEW_SERVICE_ID
+
+# ** test: invalid_navigation_position_id
+def test_invalid_navigation_position_id() -> None:
+    '''
+    Verify the invalid navigation position error id value and assets export.
+    '''
+
+    # Assert the constant value.
+    assert INVALID_NAVIGATION_POSITION_ID == 'INVALID_NAVIGATION_POSITION'
+
+    # Assert the assets package exports the same constant.
+    assert EXPORTED_INVALID_NAVIGATION_POSITION_ID == INVALID_NAVIGATION_POSITION_ID
 
 # ** test: view_not_initialized_id_is_removed
 def test_view_not_initialized_id_is_removed() -> None:

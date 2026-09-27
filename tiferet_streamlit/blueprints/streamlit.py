@@ -153,6 +153,7 @@ def build_pages_from_config(
             view,
             title=page.title,
             icon=page.icon,
+            layout=page.layout,
         )
 
     # Return the page context.

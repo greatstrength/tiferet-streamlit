@@ -5,8 +5,10 @@
 # ** infra
 import pytest
 from unittest.mock import MagicMock, patch, call
+from tiferet import TiferetError
 
 # ** app
+from tiferet_streamlit.assets.constants import INVALID_NAVIGATION_POSITION_ID
 from tiferet_streamlit.contexts.view import ViewContext
 from tiferet_streamlit.contexts.page import PageContext
 
@@ -251,8 +253,8 @@ def test_run_calls_st_navigation(mock_st: MagicMock, mock_session_state: dict) -
         url_path='/home',
     )
 
-    # Assert st.navigation was called with the page list.
-    mock_st.navigation.assert_called_once_with(['page_obj'])
+    # Assert st.navigation was called with the page list and default position.
+    mock_st.navigation.assert_called_once_with(['page_obj'], position='sidebar')
 
     # Assert nav.run() was called.
     mock_nav.run.assert_called_once()
@@ -320,5 +322,177 @@ def test_run_multiple_pages_order(mock_st: MagicMock, mock_session_state: dict) 
     # Assert st.Page was called twice.
     assert mock_st.Page.call_count == 2
 
-    # Assert navigation received both page objects.
-    mock_st.navigation.assert_called_once_with(['page_/a', 'page_/b'])
+    # Assert navigation received both page objects and the default position.
+    mock_st.navigation.assert_called_once_with(['page_/a', 'page_/b'], position='sidebar')
+
+
+# ** test: run_passes_position_top
+@patch('tiferet_streamlit.contexts.page.st')
+def test_run_passes_position_top(mock_st: MagicMock, mock_session_state: dict) -> None:
+    '''
+    Verify run(position='top') passes that position to st.navigation.
+
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Set up mocks.
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+    mock_st.Page.return_value = 'page_obj'
+
+    # Register a page and run with position='top'.
+    ctx = PageContext()
+    ctx.register_page('/home', MagicMock(), title='Home')
+    ctx.run(position='top')
+
+    # Assert st.navigation was called with position='top'.
+    mock_st.navigation.assert_called_once_with(['page_obj'], position='top')
+
+
+# ** test: run_rejects_hidden_position
+@patch('tiferet_streamlit.contexts.page.st')
+def test_run_rejects_hidden_position(mock_st: MagicMock, mock_session_state: dict) -> None:
+    '''
+    Verify run(position='hidden') raises INVALID_NAVIGATION_POSITION and
+    never calls st.navigation.
+
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Register a page.
+    ctx = PageContext()
+    ctx.register_page('/home', MagicMock(), title='Home')
+
+    # Assert the invalid-position error is raised.
+    with pytest.raises(TiferetError) as exc_info:
+        ctx.run(position='hidden')
+
+    assert exc_info.value.error_code == INVALID_NAVIGATION_POSITION_ID
+
+    # Assert st.navigation was never called.
+    mock_st.navigation.assert_not_called()
+
+
+# ** test: run_applies_shared_layout_before_navigation
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.contexts.page._page_config_can_precede_first_streamlit_call')
+def test_run_applies_shared_layout_before_navigation(
+        mock_can_precede: MagicMock,
+        mock_st: MagicMock,
+        mock_session_state: dict,
+    ) -> None:
+    '''
+    Verify a single shared layout triggers set_page_config once, before st.Page.
+
+    :param mock_can_precede: The mocked first-command helper.
+    :type mock_can_precede: MagicMock
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Allow set_page_config to still be the first Streamlit call.
+    mock_can_precede.return_value = True
+
+    # Record call order across set_page_config and Page.
+    order = []
+    mock_st.set_page_config.side_effect = lambda **kw: order.append('set_page_config')
+    mock_st.Page.side_effect = lambda **kw: order.append('page') or 'page_obj'
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+
+    # Register a single page with a shared layout.
+    ctx = PageContext()
+    ctx.register_page('/home', MagicMock(), title='Home', layout='wide')
+
+    # Run the page context.
+    ctx.run()
+
+    # Assert set_page_config ran once with the shared layout.
+    mock_st.set_page_config.assert_called_once_with(layout='wide')
+
+    # Assert set_page_config ran before st.Page.
+    assert order == ['set_page_config', 'page']
+
+
+# ** test: run_skips_layout_when_values_differ
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.contexts.page._page_config_can_precede_first_streamlit_call')
+def test_run_skips_layout_when_values_differ(
+        mock_can_precede: MagicMock,
+        mock_st: MagicMock,
+        mock_session_state: dict,
+    ) -> None:
+    '''
+    Verify differing stored layouts skip set_page_config but navigation still runs.
+
+    :param mock_can_precede: The mocked first-command helper.
+    :type mock_can_precede: MagicMock
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # Allow set_page_config to still be the first Streamlit call.
+    mock_can_precede.return_value = True
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+    mock_st.Page.return_value = 'page_obj'
+
+    # Register pages with differing layouts.
+    ctx = PageContext()
+    ctx.register_page('/a', MagicMock(), layout='centered')
+    ctx.register_page('/b', MagicMock(), layout='wide')
+
+    # Run the page context.
+    ctx.run()
+
+    # Assert set_page_config was not called.
+    mock_st.set_page_config.assert_not_called()
+
+    # Assert navigation still ran.
+    mock_nav.run.assert_called_once()
+
+
+# ** test: run_skips_layout_after_streamlit_command
+@patch('tiferet_streamlit.contexts.page.st')
+@patch('tiferet_streamlit.contexts.page._page_config_can_precede_first_streamlit_call')
+def test_run_skips_layout_after_streamlit_command(
+        mock_can_precede: MagicMock,
+        mock_st: MagicMock,
+        mock_session_state: dict,
+    ) -> None:
+    '''
+    Verify a helper returning False skips set_page_config entirely.
+
+    :param mock_can_precede: The mocked first-command helper.
+    :type mock_can_precede: MagicMock
+    :param mock_st: The mocked streamlit module.
+    :type mock_st: MagicMock
+    :param mock_session_state: The mocked session state dict.
+    :type mock_session_state: dict
+    '''
+
+    # A Streamlit command has already run, so the helper reports False.
+    mock_can_precede.return_value = False
+    mock_nav = MagicMock()
+    mock_st.navigation.return_value = mock_nav
+    mock_st.Page.return_value = 'page_obj'
+
+    # Register a page with a stored layout.
+    ctx = PageContext()
+    ctx.register_page('/home', MagicMock(), layout='wide')
+
+    # Run the page context.
+    ctx.run()
+
+    # Assert set_page_config was not called.
+    mock_st.set_page_config.assert_not_called()
